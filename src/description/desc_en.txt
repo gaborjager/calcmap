@@ -1,0 +1,1 @@
+Colors an .odg base map (france-odg project) from two Calc columns: code | value. Base maps are downloaded from the france-odg catalog and cached; choice of extensible color palettes.
