@@ -2,7 +2,6 @@
 .~lock.*#
 
 # Généré par build.py
-dist/
 src/CalcMap/CalcMap.xba
 
 __pycache__/

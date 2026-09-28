@@ -1,8 +1,7 @@
 # CalcMap — cartes thématiques pour LibreOffice Calc
 
 **CalcMap** est une extension LibreOffice qui colorie un fond de carte `.odg` à partir de deux colonnes
-d'un classeur Calc : **code | valeur**. Elle remplace l'usage de GeOOo (abandonné
-depuis 2012) avec les fonds de carte du projet
+d'un classeur Calc : **code | valeur**. Elle utilise les fonds de carte du projet
 [france-odg](https://github.com/gaborjager/france-odg), où chaque zone porte son
 code INSEE dans son nom.
 
@@ -179,6 +178,9 @@ la carte et le bilan. Avec `JOURNAL_DETAILLE = True`, il trace aussi chaque zone
 
 ## Installation
 
+Télécharger [`dist/CalcMap.oxt`](https://github.com/gaborjager/calcmap/raw/main/dist/CalcMap.oxt)
+(dernière version construite), puis :
+
 - **Un utilisateur** : double-clic sur `CalcMap.oxt`, ou
   **Outils → Gestionnaire des extensions → Ajouter**, puis redémarrer LibreOffice.
 - **Tous les utilisateurs d'un poste** (administrateur, LibreOffice fermé) :
@@ -230,6 +232,7 @@ python3 tests/generer_tests.py departements --force   # réécrire une carte
 ```
 calcmap/
 ├── build.py                    construit dist/CalcMap.oxt
+├── dist/CalcMap.oxt            extension prête à installer
 ├── src/
 │   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
 │   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)
