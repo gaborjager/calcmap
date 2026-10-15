@@ -50,7 +50,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.1.0"
+Const VERSION = "0.1.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -95,9 +95,11 @@ Private aCartesDialogue As Variant
 Private aPalettesDialogue As Variant
 Private oTextes As Object           ' textes traduits (clé -> texte), chargés au premier usage
 Private sLangue As String
-Private aLiens() As Variant         ' cartes liées suivies : Array(document, plage, écouteur, nom)
-Private nLiens As Long
-Private bRecalculEnCours As Boolean
+' Cartes liées : Global et non Private, car ces variables doivent survivre à la
+' fin de la macro (l'écouteur de modification est appelé plus tard)
+Global aLiens() As Variant          ' cartes liées suivies : Array(document, plage, écouteur, nom)
+Global nLiens As Long
+Global bRecalculEnCours As Boolean
 Private sJson As String             ' état du lecteur JSON
 Private nJson As Long
 Private bJsonOk As Boolean
