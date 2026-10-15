@@ -10,11 +10,17 @@ code INSEE dans son nom.
 1. Dans Calc, sélectionner les données : code en 1re colonne, valeur en 2e.
    Les colonnes suivantes sont ignorées ; on peut sélectionner des colonnes entières.
 2. Cliquer sur l'icône **globe** de la barre d'outils (ou **Outils → CalcMap : colorier une carte…**).
-3. Choisir le fond de carte dans la liste déroulante (régions, départements,
-   cantons, communes), ou un autre fichier `.odg` avec **Autre fichier…**.
+3. Choisir le fond de carte dans la liste déroulante (régions, départements),
+   ou un autre fichier `.odg` avec **Autre fichier…**.
 4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste).
 5. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
    dans la feuille, ou la décocher pour l'ouvrir dans Draw.
+6. Cocher **Afficher les valeurs sur la carte** pour écrire la valeur de chaque
+   zone sur la carte (voir ci-dessous).
+
+> Les cartes des cantons et des communes du catalogue france-odg ne sont pas
+> proposées pour l'instant : elles contiennent trop de zones (constante
+> `CARTES_IGNOREES` du code).
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
@@ -28,23 +34,40 @@ Case cochée (par défaut), la carte coloriée est placée dans la feuille, à d
 du bloc de données sélectionné, après une colonne vide, sur 16 cm de large.
 Elle est ancrée à sa cellule.
 
-- **Régions, départements, cantons** (jusqu'à 5 000 zones) : les zones sont
+- **Jusqu'à 5 000 zones** (régions, départements) : les zones sont
   recréées dans la feuille et groupées. Chaque zone garde sa couleur et son texte
   alternatif (`22 - Côtes-d'Armor - Valeur : 666`). Pour la consulter : double-clic
   sur la carte pour entrer dans le groupe, puis clic droit sur une zone →
-  *Texte alternatif*. Insertion en moins de 3 s pour les cantons.
-- **Communes** (35 000 zones, trop lourd pour la feuille) : la carte est insérée
+  *Texte alternatif*.
+- **Au-delà** (fond de carte choisi avec *Autre fichier…*) : la carte est insérée
   comme **image** PNG. Les valeurs par zone ne sont alors pas consultables sur la
   carte ; décocher la case pour ouvrir la carte dans Draw si besoin.
 
 Le choix de la case est mémorisé.
 
+### Valeurs sur la carte
+
+Case **Afficher les valeurs sur la carte** cochée, la valeur de chaque zone est
+écrite au centre de la zone, dans la carte insérée comme dans Draw :
+
+- au **format de nombre de la colonne Calc** (décimales, pourcentage, séparateur
+  de milliers…) : formater la colonne des valeurs avant de lancer la commande ;
+- en noir sur les couleurs claires, en blanc sur les couleurs foncées ;
+- en petits caractères, d'autant plus petits que la carte compte de zones ;
+- les zones sans donnée n'affichent rien.
+
+Les valeurs suivent la mise à jour automatique. Au-delà de 5 000 zones, elles ne
+sont pas affichées (trop longues à créer et illisibles). Une valeur peut être en
+partie masquée par une zone voisine, et les petites zones (Paris et sa petite
+couronne) sont peu lisibles. Le choix de la case est mémorisé ; elle est décochée
+par défaut.
+
 ### Mise à jour automatique
 
 Une carte insérée dans la feuille reste **liée à ses données** : dès qu'une
 valeur change (saisie, collage, résultat de formule recalculé), la carte est
-recoloriée, avec la même palette. Pour la carte des communes (image), l'image est
-régénérée, ce qui prend 1 à 3 secondes.
+recoloriée, avec la même palette (et les mêmes valeurs affichées ou non). Pour une
+carte insérée en image, l'image est régénérée.
 
 - Le lien est enregistré dans le classeur : une plage nommée `CalcMap_1`
   (`_2`, … pour d'autres cartes) sur les deux colonnes sélectionnées, et une
@@ -214,7 +237,8 @@ du code Basic et reportée dans `description.xml`.
 
 ## Fichiers de test
 
-Un classeur par fond de carte du catalogue : `tests/test-<carte>.ods`, avec les
+Un classeur par fond de carte du catalogue (ceux des cantons et des communes
+sont conservés, bien que ces cartes ne soient pas proposées pour l'instant) : `tests/test-<carte>.ods`, avec les
 colonnes *Code | Valeur (test) | Nom* et une ligne par zone. Sélectionner les
 colonnes A:B puis lancer la commande avec la carte correspondante : toutes les
 zones doivent être coloriées, sans code inconnu dans le journal.

@@ -27,6 +27,12 @@ REM  nom). Toute modification des valeurs recolore la carte. Le lien est
 REM  enregistré avec le classeur et reconnecté à son ouverture (événement
 REM  « Ouvrir le document » déclaré par l'extension dans Events.xcu).
 REM
+REM  Valeurs sur la carte (option du dialogue) : la valeur de chaque zone est
+REM  écrite comme texte de la forme, au format de nombre de la colonne Calc,
+REM  en blanc sur les couleurs foncées et en noir sur les claires. Sa taille
+REM  dépend du nombre de zones (TailleValeurs). Au-delà de SEUIL_FORMES_CALC
+REM  zones (communes), les valeurs ne sont pas affichées.
+REM
 REM  Palettes : palettes.json de l'extension, complété (ou remplacé, à id
 REM  égal) par $(user)/calcmap/palettes.json. Le nombre de couleurs
 REM  d'une palette fixe le nombre de classes ; une palette "continuous"
@@ -50,7 +56,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.1.1"
+Const VERSION = "0.2.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -60,12 +66,14 @@ Const DOSSIER_CARTES = "calcmap"         ' cache des fonds de carte, dans le pro
 Const ANCIEN_DOSSIER = "coloriercarte"   ' cache de l'ancienne extension ColorierCarte (repris)
 Const NOM_CATALOGUE = "maps.json"        ' copie locale du catalogue (mode hors ligne)
 Const CARTE_PAR_DEFAUT = "departements"
+Const CARTES_IGNOREES = "|cantons|communes|"   ' cartes du catalogue non proposées (id entre |) : trop lourdes
 Const NOM_PALETTES = "palettes.json"     ' palettes de l'extension et de l'utilisateur
 Const NOM_PREFERENCES = "preferences.properties"   ' dernière carte et palette choisies
 Const PALETTE_PAR_DEFAUT = "bleus"
 Const NB_NUANCES_APERCU = 12             ' cases d'aperçu de palette dans le dialogue
 Const SEUIL_FORMES_CALC = 5000           ' au-delà, carte insérée dans Calc en image
 Const LARGEUR_CARTE_CALC = 16000         ' largeur de la carte insérée (1/100 mm)
+Const POLICE_VALEURS = "Liberation Sans"   ' valeurs sur la carte (fournie avec LibreOffice)
 Const LARGEUR_IMAGE_PX = 2400            ' largeur de l'image PNG (cartes détaillées)
 Const NOM_IMAGE = "carte-inseree.png"    ' image temporaire, dans le cache
 Const PREFIXE_LIEN = "CalcMap_"          ' plages nommées et propriétés des cartes liées
@@ -111,6 +119,7 @@ Sub CalcMap()
 	Dim oDocCalc As Object, oPlage As Object, aData As Variant
 	Dim sUrl As String, oDoc As Object, nOk As Long, bDuCache As Boolean, aPalette As Variant
 	Dim bInserer As Boolean, oSelection As Object, oForme As Object, bImage As Boolean
+	Dim bValeurs As Boolean, vEtiquettes As Variant
 	Dim aProps(1) As New com.sun.star.beans.PropertyValue
 	On Error GoTo Erreur
 
@@ -137,7 +146,7 @@ Sub CalcMap()
 	Journal("Plage lue : " & NomPlage(oPlage))
 	aData = oPlage.getDataArray()
 
-	sUrl = ChoisirFondDeCarte(oDocCalc, bDuCache, aPalette, bInserer)
+	sUrl = ChoisirFondDeCarte(oDocCalc, bDuCache, aPalette, bInserer, bValeurs)
 	If sUrl = "" Then
 		Journal("Choix du fond de carte annulé ou impossible.")
 		GoTo Fin
@@ -160,14 +169,21 @@ Sub CalcMap()
 		GoTo Fin
 	End If
 
-	nOk = ColorierDocument(oDoc, aData, aPalette)
+	If bValeurs And NombreZones(oDoc) > SEUIL_FORMES_CALC Then
+		' Des dizaines de milliers de textes : plusieurs minutes, et illisibles
+		Journal("Trop de zones (" & NombreZones(oDoc) & ") : valeurs non affichées")
+		Informer(Tr("msg.too_many_values", NombreZones(oDoc)))
+		bValeurs = False
+	End If
+	If bValeurs Then vEtiquettes = EtiquettesValeurs(oDocCalc, oPlage, aData)
+	nOk = ColorierDocument(oDoc, aData, aPalette, vEtiquettes)
 	If nOk = 0 Then Avertir(Tr("msg.no_match"))
 	If bInserer Then
 		If nOk > 0 Then
 			' Insertion et lien = une seule action dans l'historique d'annulation
 			oDocCalc.getUndoManager().enterUndoContext(Tr("undo.insert_map"))
 			oForme = InsererDansCalc(oDoc, oDocCalc, oPlage, NomFichier(sUrl), bImage)
-			If Not IsNull(oForme) Then CreerLien(oDocCalc, oSelection, oForme, aPalette(P_ID), sUrl, bImage)
+			If Not IsNull(oForme) Then CreerLien(oDocCalc, oSelection, oForme, aPalette(P_ID), sUrl, bImage, bValeurs)
 			oDocCalc.getUndoManager().leaveUndoContext()
 		End If
 		oDoc.close(True)
@@ -189,16 +205,25 @@ End Sub
 ' Cœur : colorie les formes d'un document Draw ouvert avec une palette :
 ' autant de classes d'intervalles égaux que de couleurs, ou dégradé continu
 ' entre les couleurs de la palette. Renvoie le nombre de zones coloriées.
+' vEtiquettes : Empty, ou valeurs à écrire sur la carte (EtiquettesValeurs).
 ' Ne lève jamais d'erreur.
 ' ---------------------------------------------------------------------------
-Function ColorierDocument(oDoc As Object, aData As Variant, aPalette As Variant) As Long
+Function NombreZones(oDoc As Object) As Long
+	Dim j As Long
+	On Error Resume Next
+	For j = 0 To oDoc.getDrawPages().getCount() - 1
+		NombreZones = NombreZones + oDoc.getDrawPages().getByIndex(j).getCount()
+	Next j
+End Function
+
+Function ColorierDocument(oDoc As Object, aData As Variant, aPalette As Variant, vEtiquettes As Variant) As Long
 	Dim aPages() As Object, j As Long
 	On Error GoTo Erreur
 	ReDim aPages(oDoc.getDrawPages().getCount() - 1) As Object
 	For j = 0 To UBound(aPages)
 		aPages(j) = oDoc.getDrawPages().getByIndex(j)
 	Next j
-	ColorierDocument = ColorierConteneurs(aPages, aData, aPalette)
+	ColorierDocument = ColorierConteneurs(aPages, aData, aPalette, vEtiquettes)
 	Exit Function
 Erreur:
 	Journal("ERREUR pendant le coloriage : " & Error$)
@@ -206,8 +231,10 @@ Erreur:
 End Function
 
 ' Colorie les formes de chaque conteneur (page de dessin, groupe…)
-Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette As Variant) As Long
+Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette As Variant, _
+		vEtiquettes As Variant) As Long
 	Dim oMap As Object, dMin As Double, dMax As Double, nValides As Long
+	Dim dTaille As Double, nZones As Long, sEtiquette As String
 	Dim aCouleurs As Variant, nClasses As Integer, oPage As Object, oShape As Object
 	Dim bContinu As Boolean, dPosition As Double, nCouleur As Long
 	Dim sNom As String, dVal As Double, iClasse As Integer
@@ -232,6 +259,20 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 		Journal("Palette : " & aPalette(P_ID) & " (dégradé continu, " & nClasses & " couleurs)")
 	Else
 		Journal("Palette : " & aPalette(P_ID) & " (" & nClasses & " classes)")
+	End If
+
+	' Taille des valeurs (0 : pas de valeur sur la carte), proportionnelle à la
+	' largeur de la carte pour garder le même aspect dans Draw et dans Calc
+	If IsArray(vEtiquettes) Then
+		For j = 0 To UBound(aConteneurs)
+			nZones = nZones + aConteneurs(j).getCount()
+		Next j
+	End If
+	If nZones > SEUIL_FORMES_CALC Then
+		Journal("Trop de zones (" & nZones & ") : valeurs non affichées")
+	ElseIf nZones > 0 Then
+		dTaille = TailleValeurs(nZones) * LargeurConteneur(aConteneurs(0)) / LARGEUR_CARTE_CALC
+		Journal("Valeurs affichées sur la carte (" & Format(dTaille, "0.0") & " pt)")
 	End If
 
 	For j = 0 To UBound(aConteneurs)
@@ -259,12 +300,13 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 						If iClasse < 0 Then iClasse = 0
 						nCouleur = aCouleurs(iClasse)
 					End If
-					AppliquerZone(oShape, nCouleur, Tr("alt.value", dVal))
+					If dTaille > 0 Then sEtiquette = TexteValeur(vEtiquettes, dVal)
+					AppliquerZone(oShape, nCouleur, Tr("alt.value", dVal), sEtiquette, dTaille)
 					nOk = nOk + 1
 					If JOURNAL_DETAILLE Then Journal("  " & sNom & " = " & dVal & " -> " _
 						& IIf(bContinu, "couleur " & Hex(nCouleur), "classe " & (iClasse + 1)))
 				Else
-					AppliquerZone(oShape, aPalette(P_VIDE), Tr("alt.none"))
+					AppliquerZone(oShape, aPalette(P_VIDE), Tr("alt.none"), "", dTaille)
 					nSans = nSans + 1
 					If JOURNAL_DETAILLE Then Journal("  " & sNom & " : pas de donnée -> couleur par défaut")
 				End If
@@ -307,12 +349,23 @@ Function CouleurDegrade(aCouleurs As Variant, ByVal dPosition As Double) As Long
 		Int(Blue(c1) + (Blue(c2) - Blue(c1)) * f + 0.5))
 End Function
 
-' Applique couleur et texte alternatif ; une forme récalcitrante est ignorée
-Sub AppliquerZone(oShape As Object, nCouleur As Long, sTexte As String)
+' Applique couleur et texte alternatif, et la valeur affichée si dTaille > 0
+' (sEtiquette vide : zone sans donnée, texte effacé) ; une forme récalcitrante
+' est ignorée
+Sub AppliquerZone(oShape As Object, nCouleur As Long, sTexte As String, sEtiquette As String, _
+		dTaille As Double)
 	On Error GoTo Erreur
 	oShape.FillStyle = com.sun.star.drawing.FillStyle.SOLID
 	oShape.FillColor = nCouleur
 	If ECRIRE_TEXTE_ALT Then oShape.Description = TexteAlternatif(oShape.Description, sTexte)
+	If dTaille > 0 Then
+		If sEtiquette = "" Then
+			If oShape.getString() <> "" Then oShape.setString("")
+		Else
+			oShape.setString(sEtiquette)
+			StylerValeur(oShape, dTaille, CouleurTexte(nCouleur))
+		End If
+	End If
 	Exit Sub
 Erreur:
 	Journal("  forme ignorée (" & Error$ & ")")
@@ -337,6 +390,91 @@ Function TexteAlternatif(sExistant As String, sValeur As String) As String
 		TexteAlternatif = sValeur
 	Else
 		TexteAlternatif = sBase & " - " & sValeur
+	End If
+End Function
+
+' ---------------------------------------------------------------------------
+' Valeurs sur la carte. EtiquettesValeurs renvoie Array(formateur, format) :
+' le format de nombre de la première valeur numérique de la colonne, pour
+' afficher les valeurs comme dans la feuille (décimales, %, milliers…).
+' ---------------------------------------------------------------------------
+Function EtiquettesValeurs(oDocCalc As Object, oPlage As Object, aData As Variant) As Variant
+	Dim oFormateur As Object, nCle As Long, i As Long
+	On Error GoTo Erreur
+	oFormateur = CreateUnoService("com.sun.star.util.NumberFormatter")
+	oFormateur.attachNumberFormatsSupplier(oDocCalc)
+	nCle = 0
+	For i = 0 To UBound(aData)
+		If UBound(aData(i)) >= 1 Then
+			Select Case VarType(aData(i)(1))
+				Case 2, 3, 4, 5, 6, 7
+					nCle = oPlage.getCellByPosition(1, i).NumberFormat
+					Exit For
+			End Select
+		End If
+	Next i
+	EtiquettesValeurs = Array(oFormateur, nCle)
+	Exit Function
+Erreur:
+	Journal("Format des valeurs non lu (" & Error$ & ") : format standard")
+	EtiquettesValeurs = Array(Nothing, 0)
+End Function
+
+Function TexteValeur(vEtiquettes As Variant, dVal As Double) As String
+	On Error GoTo Erreur
+	TexteValeur = vEtiquettes(0).convertNumberToString(vEtiquettes(1), dVal)
+	Exit Function
+Erreur:
+	TexteValeur = CStr(dVal)
+End Function
+
+' Taille des valeurs (points) pour une carte de LARGEUR_CARTE_CALC de large :
+' plus il y a de zones, plus elles sont petites
+Function TailleValeurs(nZones As Long) As Double
+	If nZones <= 150 Then
+		TailleValeurs = 6
+	ElseIf nZones <= 500 Then
+		TailleValeurs = 4.5
+	Else
+		TailleValeurs = 3
+	End If
+End Function
+
+' Largeur (1/100 mm) d'une page de dessin, d'une forme ou d'une collection
+Function LargeurConteneur(o As Object) As Double
+	On Error GoTo Forme
+	LargeurConteneur = o.Width
+	Exit Function
+Forme:
+	On Error GoTo Collection
+	LargeurConteneur = o.Size.Width
+	Exit Function
+Collection:
+	On Error GoTo Defaut
+	LargeurConteneur = o.getByIndex(0).Size.Width
+	Exit Function
+Defaut:
+	LargeurConteneur = LARGEUR_CARTE_CALC
+End Function
+
+' Texte de la zone : centré, sur une ligne, sans agrandir la forme
+Sub StylerValeur(oShape As Object, dTaille As Double, nCouleur As Long)
+	oShape.TextAutoGrowHeight = False
+	oShape.TextAutoGrowWidth = False
+	oShape.TextWordWrap = False
+	oShape.TextHorizontalAdjust = com.sun.star.drawing.TextHorizontalAdjust.CENTER
+	oShape.TextVerticalAdjust = com.sun.star.drawing.TextVerticalAdjust.CENTER
+	oShape.CharFontName = POLICE_VALEURS
+	oShape.CharHeight = dTaille
+	oShape.CharColor = nCouleur
+End Sub
+
+' Noir sur fond clair, blanc sur fond foncé
+Function CouleurTexte(nFond As Long) As Long
+	If 0.299 * Red(nFond) + 0.587 * Green(nFond) + 0.114 * Blue(nFond) < 140 Then
+		CouleurTexte = RGB(255, 255, 255)
+	Else
+		CouleurTexte = RGB(0, 0, 0)
 	End If
 End Function
 
@@ -557,10 +695,11 @@ End Function
 ' Choix du fond de carte (catalogue france-odg) et de la palette. Renvoie
 ' l'URL du fichier à ouvrir ("" si annulé) ; bDuCache indique une carte du
 ' cache ; aPalette reçoit la palette choisie (celle par défaut sinon) ;
-' bInserer indique si la carte doit être insérée dans la feuille Calc.
+' bInserer indique si la carte doit être insérée dans la feuille Calc,
+' bValeurs si les valeurs doivent être affichées sur la carte.
 ' ---------------------------------------------------------------------------
 Function ChoisirFondDeCarte(oDocCalc As Object, bDuCache As Boolean, aPalette As Variant, _
-		bInserer As Boolean) As String
+		bInserer As Boolean, bValeurs As Boolean) As String
 	Dim sDossier As String, aCartes As Variant, bEnLigne As Boolean, aPalettes As Variant
 	Dim sEtat As String, iChoix As Integer, iPalette As Integer, nRes As Integer
 	Dim sPrefCarte As String, sPrefPalette As String
@@ -568,7 +707,7 @@ Function ChoisirFondDeCarte(oDocCalc As Object, bDuCache As Boolean, aPalette As
 	ChoisirFondDeCarte = ""
 	bDuCache = False
 	aPalettes = ChargerPalettes()
-	LirePreferences(sPrefCarte, sPrefPalette, bInserer)
+	LirePreferences(sPrefCarte, sPrefPalette, bInserer, bValeurs)
 	aPalette = aPalettes(IndicePalette(aPalettes, sPrefPalette))
 	sDossier = DossierCartes()
 	If sDossier = "" Then
@@ -586,16 +725,16 @@ Function ChoisirFondDeCarte(oDocCalc As Object, bDuCache As Boolean, aPalette As
 	End If
 
 	nRes = DialogueCartes(aCartes, aPalettes, sEtat, sPrefCarte, sPrefPalette, _
-		iChoix, iPalette, bInserer, FenetreParente(oDocCalc))
+		iChoix, iPalette, bInserer, bValeurs, FenetreParente(oDocCalc))
 	Journal("Dialogue : résultat " & nRes & ", carte n° " & iChoix & ", palette n° " & iPalette _
-		& ", insertion dans Calc : " & bInserer)
+		& ", insertion dans Calc : " & bInserer & ", valeurs sur la carte : " & bValeurs)
 	If (nRes = 1 Or nRes = 3) And iPalette >= 0 Then
 		aPalette = aPalettes(iPalette)
 		If nRes = 1 And iChoix >= 0 Then
 			sPrefCarte = aCartes(iChoix)(C_ID)
 			If sPrefCarte = "" Then sPrefCarte = aCartes(iChoix)(C_FICHIER)
 		End If
-		EcrirePreferences(sPrefCarte, aPalette(P_ID), bInserer)
+		EcrirePreferences(sPrefCarte, aPalette(P_ID), bInserer, bValeurs)
 	End If
 	If nRes = 1 And iChoix >= 0 Then
 		Journal("Carte choisie : " & aCartes(iChoix)(C_TITRE))
@@ -612,13 +751,14 @@ Erreur:
 End Function
 
 ' Derniers choix (preferences.properties du cache) ; insertion dans Calc
-' activée par défaut
-Sub LirePreferences(sCarte As String, sPalette As String, bInserer As Boolean)
+' activée par défaut, valeurs sur la carte désactivées par défaut
+Sub LirePreferences(sCarte As String, sPalette As String, bInserer As Boolean, bValeurs As Boolean)
 	Dim oPrefs As Object, sDossier As String
 	On Error GoTo Erreur
 	sCarte = ""
 	sPalette = ""
 	bInserer = True
+	bValeurs = False
 	sDossier = DossierCartes()
 	If sDossier = "" Then Exit Sub
 	oPrefs = com.sun.star.container.EnumerableMap.create("string", "string")
@@ -626,19 +766,21 @@ Sub LirePreferences(sCarte As String, sPalette As String, bInserer As Boolean)
 	If oPrefs.containsKey("carte") Then sCarte = oPrefs.get("carte")
 	If oPrefs.containsKey("palette") Then sPalette = oPrefs.get("palette")
 	If oPrefs.containsKey("inserer") Then bInserer = (oPrefs.get("inserer") <> "0")
+	If oPrefs.containsKey("valeurs") Then bValeurs = (oPrefs.get("valeurs") = "1")
 	Exit Sub
 Erreur:
 	Journal("Préférences illisibles : " & Error$)
 End Sub
 
-Sub EcrirePreferences(sCarte As String, sPalette As String, bInserer As Boolean)
+Sub EcrirePreferences(sCarte As String, sPalette As String, bInserer As Boolean, bValeurs As Boolean)
 	Dim sDossier As String
 	On Error GoTo Erreur
 	sDossier = DossierCartes()
 	If sDossier = "" Then Exit Sub
 	EcrireTexte(sDossier & NOM_PREFERENCES, "# CalcMap : derniers choix" & Chr(10) _
 		& "carte=" & sCarte & Chr(10) & "palette=" & sPalette & Chr(10) _
-		& "inserer=" & IIf(bInserer, "1", "0") & Chr(10))
+		& "inserer=" & IIf(bInserer, "1", "0") & Chr(10) _
+		& "valeurs=" & IIf(bValeurs, "1", "0") & Chr(10))
 	Exit Sub
 Erreur:
 	Journal("Préférences non enregistrées : " & Error$)
@@ -693,7 +835,7 @@ Function ChargerCatalogue(sDossier As String, bEnLigne As Boolean) As Variant
 		aCartes = CartesDuCache(LireCatalogue(sCat, sDossier), sDossier)
 		Journal("Hors ligne : " & (UBound(aCartes) + 1) & " carte(s) en cache")
 	End If
-	ChargerCatalogue = aCartes
+	ChargerCatalogue = SansCartesIgnorees(aCartes)
 	Exit Function
 Erreur:
 	Journal("ERREUR au chargement du catalogue : " & Error$)
@@ -732,6 +874,23 @@ Erreur:
 End Function
 
 ' Cartes du catalogue présentes en cache, plus les autres .odg du cache
+' Retire les cartes de CARTES_IGNOREES (après CartesDuCache, pour que leur
+' fichier en cache ne soit pas proposé comme une carte locale inconnue)
+Function SansCartesIgnorees(aCartes As Variant) As Variant
+	Dim aRes() As Variant, n As Long, i As Long
+	SansCartesIgnorees = Array()
+	For i = 0 To UBound(aCartes)
+		If aCartes(i)(C_ID) <> "" And InStr(CARTES_IGNOREES, "|" & aCartes(i)(C_ID) & "|") > 0 Then
+			Journal("Carte ignorée : " & aCartes(i)(C_ID))
+		Else
+			ReDim Preserve aRes(n)
+			aRes(n) = aCartes(i)
+			n = n + 1
+		End If
+	Next i
+	If n > 0 Then SansCartesIgnorees = aRes
+End Function
+
 Function CartesDuCache(aCatalogue As Variant, sDossier As String) As Variant
 	Dim oSFA As Object, aRes() As Variant, n As Long, i As Long, k As Long
 	Dim aFichiers As Variant, aParties As Variant, sNom As String, bConnu As Boolean
@@ -1020,7 +1179,7 @@ End Function
 ' ---------------------------------------------------------------------------
 Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As String, _
 		sPrefCarte As String, sPrefPalette As String, iChoix As Integer, iPalette As Integer, _
-		bInserer As Boolean, oParent As Object) As Integer
+		bInserer As Boolean, bValeurs As Boolean, oParent As Object) As Integer
 	Dim oModele As Object, oListe As Object, oListePal As Object
 	Dim oEcouteurListe As Object, oEcouteurPal As Object, oEcouteurBouton As Object
 	Dim aLibelles() As String, aNomsPal() As String, i As Long, iDefaut As Integer, nFin As Long
@@ -1057,7 +1216,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = Tr("app.title")
 	oModele.Width = 250
-	oModele.Height = 172
+	oModele.Height = 186
 	AjouterControle(oModele, "FixedText", "lblCarte", 6, 6, 238, 10, Array("Label"), Array(Tr("dlg.map")))
 	AjouterControle(oModele, "ListBox", "lstCarte", 6, 17, 238, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 12, aLibelles))
@@ -1070,13 +1229,15 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	Next i
 	AjouterControle(oModele, "CheckBox", "chkInserer", 6, 108, 238, 12, _
 		Array("Label", "State"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0)))
-	AjouterControle(oModele, "FixedText", "lblEtat", 6, 124, 238, 24, _
+	AjouterControle(oModele, "CheckBox", "chkValeurs", 6, 122, 238, 12, _
+		Array("Label", "State"), Array(Tr("dlg.show_values"), IIf(bValeurs, 1, 0)))
+	AjouterControle(oModele, "FixedText", "lblEtat", 6, 138, 238, 24, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnAutre", 6, 152, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 166, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "Button", "btnOk", 138, 152, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 138, 166, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 194, 152, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 194, 166, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -1101,6 +1262,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	iChoix = oListe.getSelectedItemPos()
 	iPalette = oListePal.getSelectedItemPos()
 	bInserer = (oDialogue.getControl("chkInserer").getState() = 1)
+	bValeurs = (oDialogue.getControl("chkValeurs").getState() = 1)
 	If DialogueCartes = 0 Then Journal("Dialogue de choix de carte annulé")
 	oListe.removeItemListener(oEcouteurListe)
 	oListePal.removeItemListener(oEcouteurPal)
@@ -1279,6 +1441,10 @@ Function CopierFormes(oPageDraw As Object, oDocCalc As Object, oPageCalc As Obje
 			oCopie.LineWidth = oSource.LineWidth
 			oCopie.Name = oSource.Name
 			oCopie.Description = oSource.Description
+			If oSource.getString() <> "" Then
+				oCopie.setString(oSource.getString())
+				StylerValeur(oCopie, oSource.CharHeight * LARGEUR_CARTE_CALC / oPageDraw.Width, oSource.CharColor)
+			End If
 		Else
 			nIgnorees = nIgnorees + 1
 		End If
@@ -1385,10 +1551,11 @@ End Function
 ' Mise à jour automatique des cartes insérées dans Calc.
 ' Un lien = une plage nommée CalcMap_N (les 2 colonnes sélectionnées,
 ' qui suit les insertions de lignes) + une propriété du document de même nom :
-' "1|nom de la forme|id de palette|URL du fond de carte|image (0/1)".
+' "1|nom de la forme|id de palette|URL du fond de carte|image (0/1)|valeurs (0/1)"
+' (le dernier champ est absent des liens créés avant la version 0.2.0).
 ' ---------------------------------------------------------------------------
 Sub CreerLien(oDocCalc As Object, oSelection As Object, oForme As Object, sPalette As String, _
-		sUrlCarte As String, bImage As Boolean)
+		sUrlCarte As String, bImage As Boolean, bValeurs As Boolean)
 	Dim oPlages As Object, sNom As String, n As Integer, oProps As Object
 	Dim oOrigine As New com.sun.star.table.CellAddress
 	On Error GoTo Erreur
@@ -1401,7 +1568,8 @@ Sub CreerLien(oDocCalc As Object, oSelection As Object, oForme As Object, sPalet
 	oPlages.addNewByName(sNom, oSelection.AbsoluteName, oOrigine, 0)
 	oProps = oDocCalc.getDocumentProperties().getUserDefinedProperties()
 	oProps.addProperty(sNom, com.sun.star.beans.PropertyAttribute.REMOVABLE, _
-		"1|" & oForme.Name & "|" & sPalette & "|" & sUrlCarte & "|" & IIf(bImage, "1", "0"))
+		"1|" & oForme.Name & "|" & sPalette & "|" & sUrlCarte & "|" & IIf(bImage, "1", "0") _
+		& "|" & IIf(bValeurs, "1", "0"))
 	Journal("Carte liée aux données " & oSelection.AbsoluteName & " (" & sNom & ") : mise à jour automatique")
 	SuivreLien(oDocCalc, sNom)
 	Exit Sub
@@ -1487,7 +1655,7 @@ End Sub
 Sub RecalculerLien(oDocCalc As Object, sNom As String)
 	Dim oPlage As Object, aChamps As Variant, oForme As Object, aData As Variant
 	Dim aPalette As Variant, aPalettes As Variant, oUndo As Object, oColl As Object
-	Dim oDoc As Object, oPage As Object
+	Dim oDoc As Object, oPage As Object, vEtiquettes As Variant
 	Dim aProps(1) As New com.sun.star.beans.PropertyValue
 	On Error GoTo Erreur
 	oPlage = oDocCalc.NamedRanges.getByName(sNom).getReferredCells()
@@ -1503,6 +1671,9 @@ Sub RecalculerLien(oDocCalc As Object, sNom As String)
 	oPlage = PlageDeDonnees(oPlage)
 	If IsNull(oPlage) Then Exit Sub
 	aData = oPlage.getDataArray()
+	If UBound(aChamps) >= 5 Then
+		If aChamps(5) = "1" Then vEtiquettes = EtiquettesValeurs(oDocCalc, oPlage, aData)
+	End If
 
 	' Le recoloriage n'entre pas dans l'historique d'annulation : Ctrl+Z annule
 	' la saisie de l'utilisateur, pas les changements de couleur
@@ -1516,16 +1687,16 @@ Sub RecalculerLien(oDocCalc As Object, sNom As String)
 		aProps(1).Name = "AsTemplate"
 		aProps(1).Value = True
 		oDoc = StarDesktop.loadComponentFromURL(aChamps(3), "_blank", 0, aProps())
-		ColorierDocument(oDoc, aData, aPalette)
+		ColorierDocument(oDoc, aData, aPalette, vEtiquettes)
 		oPage = oDoc.getDrawPages().getByIndex(0)
 		oForme.Graphic = ImageDePage(oPage)
 		oDoc.close(True)
 	ElseIf oForme.supportsService("com.sun.star.drawing.GroupShape") Then
-		ColorierConteneurs(Array(oForme), aData, aPalette)
+		ColorierConteneurs(Array(oForme), aData, aPalette, vEtiquettes)
 	Else
 		oColl = CreateUnoService("com.sun.star.drawing.ShapeCollection")
 		oColl.add(oForme)
-		ColorierConteneurs(Array(oColl), aData, aPalette)
+		ColorierConteneurs(Array(oColl), aData, aPalette, vEtiquettes)
 	End If
 	oDocCalc.unlockControllers()
 	oUndo.leaveUndoContext()
