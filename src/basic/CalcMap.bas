@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.5.0"
+Const VERSION = "0.5.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -88,6 +88,7 @@ Const POLICE_TEXTE = "Liberation Sans"   ' valeurs et libellés sur la carte (fo
 Const TAILLE_TEXTE = 10                  ' taille par défaut des valeurs et libellés (points)
 Const TAILLE_TEXTE_MIN = 2
 Const TAILLE_TEXTE_MAX = 72
+Const TAILLES_PROPOSEES = "6|7|8|9|10|11|12|14|16|18|20|24|28|32|36|48|72"   ' liste des tailles du dialogue
 Const LARGEUR_IMAGE_PX = 2400            ' largeur de l'image PNG (cartes détaillées)
 Const NOM_IMAGE = "carte-inseree.png"    ' image temporaire, dans le cache
 Const URL_CONFIGURER = "vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?language=Basic&location=application"
@@ -1654,7 +1655,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
 	oModele.Width = 330
-	oModele.Height = 282
+	oModele.Height = 250
 	AjouterControle(oModele, "FixedText", "lblCarte", 6, 6, 318, 10, Array("Label"), Array(Tr("dlg.map")))
 	AjouterControle(oModele, "ListBox", "lstCarte", 6, 17, 318, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLibelles, Not bConfig))
@@ -1671,22 +1672,22 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	AjouterListeColonne(oModele, "Libelle", 222, Tr("dlg.col_label"), aColonnes, aOptions(O_COL_LIBELLE))
 	AjouterControle(oModele, "CheckBox", "chkInserer", 6, 130, 318, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig))
-	AjouterLigneTexte(oModele, "Valeurs", 146, Tr("dlg.show_values"), aOptions(O_VALEURS), _
+	AjouterLigneTexte(oModele, "Valeurs", 147, Tr("dlg.show_values"), aOptions(O_VALEURS), _
 		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS))
-	AjouterLigneTexte(oModele, "Libelles", 180, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+	AjouterLigneTexte(oModele, "Libelles", 165, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
 		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 6, 214, 150, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegende", 6, 185, 150, 12, _
 		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 160, 214, 164, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 160, 185, 164, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
 		aOptions(O_LEGENDE)))
-	AjouterControle(oModele, "FixedText", "lblEtat", 6, 232, 318, 24, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 6, 202, 318, 24, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnAutre", 6, 262, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 230, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "Button", "btnOk", 218, 262, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 218, 230, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 274, 262, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 274, 230, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -1744,35 +1745,40 @@ Erreur:
 	DialogueCartes = 3          ' repli : sélecteur de fichier classique
 End Function
 
-' Case à cocher, taille (flèches +1 / -1, ou saisie directe), puis sur une
-' 2e ligne police et style, grisés tant que la case n'est pas cochée :
-' chk<sSuffixe>, numTaille<sSuffixe>, lstPolice<sSuffixe>, chkGras<sSuffixe>…
+' Ligne de texte du dialogue, comme la barre de formatage : case à cocher,
+' police et taille (listes où l'on peut saisir), boutons G I S, grisés tant
+' que la case n'est pas cochée : chk<sSuffixe>, cboPolice<sSuffixe>,
+' cboTaille<sSuffixe>, btnGras<sSuffixe>…
 Sub AjouterLigneTexte(oModele As Object, sSuffixe As String, nY As Long, sLibelle As String, _
 		bCoche As Boolean, nTaille As Integer, aPolices As Variant, sPolice As String, sStyle As String)
-	Dim iPolice As Integer, i As Integer
-	AjouterControle(oModele, "CheckBox", "chk" & sSuffixe, 6, nY, 200, 12, _
+	Dim aTailles As Variant, i As Integer
+	AjouterControle(oModele, "CheckBox", "chk" & sSuffixe, 6, nY, 114, 12, _
 		Array("Label", "State"), Array(sLibelle, IIf(bCoche, 1, 0)))
-	AjouterControle(oModele, "FixedText", "lblTaille" & sSuffixe, 210, nY + 2, 70, 10, _
-		Array("Label", "Align", "Enabled"), Array(Tr("dlg.text_size"), 2, bCoche))
-	AjouterControle(oModele, "NumericField", "numTaille" & sSuffixe, 284, nY - 1, 40, 14, _
-		Array("Value", "ValueMin", "ValueMax", "ValueStep", "DecimalAccuracy", "Spin", "StrictFormat", _
-		"Repeat", "Enabled"), _
-		Array(CDbl(TailleValide(nTaille)), CDbl(TAILLE_TEXTE_MIN), CDbl(TAILLE_TEXTE_MAX), 1#, 0, True, _
-		True, True, bCoche))
-	For i = 0 To UBound(aPolices)
-		If aPolices(i) = sPolice Then iPolice = i
+	' Police et taille : listes où l'on peut aussi saisir
+	AjouterControle(oModele, "ComboBox", "cboPolice" & sSuffixe, 122, nY - 1, 110, 14, _
+		Array("Dropdown", "LineCount", "StringItemList", "Text", "Autocomplete", "HelpText", "Enabled"), _
+		Array(True, 16, aPolices, sPolice, True, Tr("dlg.font"), bCoche))
+	aTailles = Split(TAILLES_PROPOSEES, "|")
+	For i = 0 To UBound(aTailles)
+		aTailles(i) = aTailles(i) & " pt"
 	Next i
-	AjouterControle(oModele, "FixedText", "lblPolice" & sSuffixe, 18, nY + 18, 36, 10, _
-		Array("Label", "Enabled"), Array(Tr("dlg.font"), bCoche))
-	AjouterControle(oModele, "ListBox", "lstPolice" & sSuffixe, 56, nY + 15, 120, 14, _
-		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 16, aPolices, bCoche))
-	oModele.getByName("lstPolice" & sSuffixe).SelectedItems = Array(iPolice)
-	AjouterControle(oModele, "CheckBox", "chkGras" & sSuffixe, 182, nY + 16, 44, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.bold"), IIf(InStr(sStyle, "B") > 0, 1, 0), bCoche))
-	AjouterControle(oModele, "CheckBox", "chkItalique" & sSuffixe, 228, nY + 16, 48, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.italic"), IIf(InStr(sStyle, "I") > 0, 1, 0), bCoche))
-	AjouterControle(oModele, "CheckBox", "chkSouligne" & sSuffixe, 278, nY + 16, 46, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.underline"), IIf(InStr(sStyle, "U") > 0, 1, 0), bCoche))
+	AjouterControle(oModele, "ComboBox", "cboTaille" & sSuffixe, 236, nY - 1, 40, 14, _
+		Array("Dropdown", "LineCount", "StringItemList", "Text", "HelpText", "Enabled"), _
+		Array(True, 12, aTailles, TailleValide(nTaille) & " pt", Tr("dlg.text_size"), bCoche))
+	' Gras, italique, souligné : boutons à bascule, lettre dans le style
+	AjouterBoutonStyle(oModele, "btnGras" & sSuffixe, 280, nY - 1, Tr("dlg.bold_short"), Tr("dlg.bold"), _
+		InStr(sStyle, "B") > 0, bCoche, "FontWeight", com.sun.star.awt.FontWeight.BOLD)
+	AjouterBoutonStyle(oModele, "btnItalique" & sSuffixe, 296, nY - 1, Tr("dlg.italic_short"), Tr("dlg.italic"), _
+		InStr(sStyle, "I") > 0, bCoche, "FontSlant", com.sun.star.awt.FontSlant.ITALIC)
+	AjouterBoutonStyle(oModele, "btnSouligne" & sSuffixe, 312, nY - 1, Tr("dlg.underline_short"), Tr("dlg.underline"), _
+		InStr(sStyle, "U") > 0, bCoche, "FontUnderline", com.sun.star.awt.FontUnderline.SINGLE)
+End Sub
+
+Sub AjouterBoutonStyle(oModele As Object, sNom As String, nX As Long, nY As Long, sLettre As String, _
+		sAide As String, bEnfonce As Boolean, bActif As Boolean, sPropriete As String, vStyle As Variant)
+	AjouterControle(oModele, "Button", sNom, nX, nY, 14, 14, _
+		Array("Label", "HelpText", "Toggle", "State", "Enabled", "PushButtonType", sPropriete), _
+		Array(sLettre, sAide, True, IIf(bEnfonce, 1, 0), bActif, 0, vStyle))
 End Sub
 
 ' Liste déroulante d'une colonne (lbl<sSuffixe>, lst<sSuffixe>)
@@ -1793,12 +1799,12 @@ Sub LireLigneTexte(sSuffixe As String, aOptions As Variant, kCase As Integer, kT
 		kPolice As Integer, kStyle As Integer)
 	Dim sStyle As String, sPolice As String
 	aOptions(kCase) = (oDialogue.getControl("chk" & sSuffixe).getState() = 1)
-	aOptions(kTaille) = TailleValide(oDialogue.getControl("numTaille" & sSuffixe).getValue())
-	sPolice = oDialogue.getControl("lstPolice" & sSuffixe).getSelectedItem()
+	aOptions(kTaille) = TailleValide(Val(oDialogue.getControl("cboTaille" & sSuffixe).getText()))
+	sPolice = Trim(oDialogue.getControl("cboPolice" & sSuffixe).getText())
 	If sPolice <> "" Then aOptions(kPolice) = sPolice
-	If oDialogue.getControl("chkGras" & sSuffixe).getState() = 1 Then sStyle = sStyle & "B"
-	If oDialogue.getControl("chkItalique" & sSuffixe).getState() = 1 Then sStyle = sStyle & "I"
-	If oDialogue.getControl("chkSouligne" & sSuffixe).getState() = 1 Then sStyle = sStyle & "U"
+	If oDialogue.getControl("btnGras" & sSuffixe).getModel().State = 1 Then sStyle = sStyle & "B"
+	If oDialogue.getControl("btnItalique" & sSuffixe).getModel().State = 1 Then sStyle = sStyle & "I"
+	If oDialogue.getControl("btnSouligne" & sSuffixe).getModel().State = 1 Then sStyle = sStyle & "U"
 	aOptions(kStyle) = sStyle
 End Sub
 
@@ -1932,7 +1938,7 @@ Sub CasesTexte_itemStateChanged(oEvenement As Object)
 	On Error Resume Next
 	For Each sSuffixe In Array("Valeurs", "Libelles")
 		bActif = (oDialogue.getControl("chk" & sSuffixe).getState() = 1)
-		For Each sCtrl In Array("lblTaille", "numTaille", "lblPolice", "lstPolice", "chkGras", "chkItalique", "chkSouligne")
+		For Each sCtrl In Array("cboPolice", "cboTaille", "btnGras", "btnItalique", "btnSouligne")
 			oDialogue.getControl(sCtrl & sSuffixe).getModel().Enabled = bActif
 		Next sCtrl
 	Next sSuffixe

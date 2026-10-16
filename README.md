@@ -19,7 +19,7 @@ code INSEE dans son nom.
    liste propose les colonnes sélectionnées, avec leur en-tête (ex. « D — Taux »).
 6. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
    dans la feuille, ou la décocher pour l'ouvrir dans Draw.
-7. Cocher **Afficher les valeurs sur la carte** et/ou **Afficher les libellés**
+7. Cocher **Afficher les valeurs** et/ou **Afficher les libellés**
    pour écrire la valeur et/ou le libellé de chaque zone sur la carte, et choisir
    leur taille, leur police et leur style (voir ci-dessous).
 8. Cocher **Afficher la légende**, **avec les valeurs** (bornes de chaque classe)
@@ -56,18 +56,17 @@ Le choix de la case est mémorisé.
 
 Deux cases du dialogue écrivent du texte au centre de chaque zone, dans la carte
 insérée comme dans Draw : **Afficher les libellés** (libellé sur la 1re ligne) et
-**Afficher les valeurs sur la carte** (valeur en dessous).
+**Afficher les valeurs** (valeur en dessous).
 
 - La valeur est au **format de nombre de la colonne Calc** (décimales,
   pourcentage, séparateur de milliers…) : formater la colonne des valeurs avant
   de lancer la commande. Le libellé est repris tel qu'il s'affiche.
 - Le texte est noir sur les couleurs claires, blanc sur les couleurs foncées.
-- Chacun a sa **taille**, à côté de sa case (10 pt par défaut, de 2 à 72) :
-  flèches pour +1 / −1, ou saisie directe. La taille vaut pour la carte insérée
-  dans Calc (16 cm de large) ; dans Draw, elle est adaptée pour garder le même
-  aspect.
-- Chacun a sa **police** (Liberation Sans par défaut) et son style : **gras**,
-  **italique**, **souligné**.
+- À côté de chaque case, comme dans la barre de formatage : la **police**
+  (Liberation Sans par défaut), la **taille** (10 pt par défaut, de 2 à 72),
+  choisies dans la liste ou saisies, et les boutons **G** (gras), *I* (italique),
+  S (souligné). La taille vaut pour la carte insérée dans Calc (16 cm de large) ;
+  dans Draw, elle est adaptée pour garder le même aspect.
 - Une zone sans valeur n'affiche que son libellé.
 
 Valeurs et libellés suivent la mise à jour automatique (un libellé modifié est
