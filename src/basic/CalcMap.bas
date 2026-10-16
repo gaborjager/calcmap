@@ -62,7 +62,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.4.1"
+Const VERSION = "0.4.3"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -1933,20 +1933,38 @@ Function MenuCarte_notifyContextMenuExecute(oEvenement As Object) As Variant
 	sLien = LienDeSelection(Nothing, oSel)
 	JournalAjout("Menu contextuel : sélection " & NomImplementation(oSel) & ", carte liée '" & sLien & "'")
 	If sLien = "" Then Exit Function
+	' Propriétés écrites par setPropertyValue : Basic ne les voit pas comme
+	' oEntree.Text (« variable d'objet non définie », LibreOffice 25.2)
 	oMenu = oEvenement.ActionTriggerContainer
 	oEntree = oMenu.createInstance("com.sun.star.ui.ActionTrigger")
-	oEntree.Text = Tr("menu.configure")
-	oEntree.CommandURL = URL_CONFIGURER
+	oEntree.setPropertyValue("Text", Tr("menu.configure"))
+	oEntree.setPropertyValue("CommandURL", URL_CONFIGURER)
+	IconeEntree(oEntree)
 	oSeparateur = oMenu.createInstance("com.sun.star.ui.ActionTriggerSeparator")
-	oSeparateur.SeparatorType = com.sun.star.ui.ActionTriggerSeparatorType.LINE
+	oSeparateur.setPropertyValue("SeparatorType", com.sun.star.ui.ActionTriggerSeparatorType.LINE)
 	oMenu.insertByIndex(0, oSeparateur)
 	oMenu.insertByIndex(0, oEntree)
+	JournalAjout("Menu : entrée « " & Tr("menu.configure") & " » ajoutée")
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.EXECUTE_MODIFIED
 	Exit Function
 Ignorer:
 	JournalAjout("ERREUR dans le menu contextuel " & Err & " (ligne " & Erl & ") : " & Error$)
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.IGNORED
 End Function
+
+' Icône globe de l'extension sur une entrée de menu (sans icône si impossible)
+Sub IconeEntree(oEntree As Object)
+	Dim oImage As Object
+	Dim aSource(0) As New com.sun.star.beans.PropertyValue
+	On Error GoTo Erreur
+	aSource(0).Name = "URL"
+	aSource(0).Value = DossierExtension() & "icons/carte_16.png"
+	oImage = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
+	If Not IsNull(oImage) Then oEntree.setPropertyValue("Image", oImage)
+	Exit Sub
+Erreur:
+	JournalAjout("Icône du menu non chargée : " & Error$)
+End Sub
 
 Function NomImplementation(o As Object) As String
 	On Error GoTo Erreur
