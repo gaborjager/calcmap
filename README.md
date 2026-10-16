@@ -53,14 +53,16 @@ Case **Afficher les valeurs sur la carte** cochée, la valeur de chaque zone est
 - au **format de nombre de la colonne Calc** (décimales, pourcentage, séparateur
   de milliers…) : formater la colonne des valeurs avant de lancer la commande ;
 - en noir sur les couleurs claires, en blanc sur les couleurs foncées ;
-- en petits caractères, d'autant plus petits que la carte compte de zones ;
+- à la **taille choisie** à côté de la case (6 pt par défaut, de 2 à 72) : flèches
+  pour +1 / −1, ou saisie directe. La taille vaut pour la carte insérée dans Calc
+  (16 cm de large) ; dans Draw, elle est adaptée pour garder le même aspect ;
 - les zones sans donnée n'affichent rien.
 
 Les valeurs suivent la mise à jour automatique. Au-delà de 5 000 zones, elles ne
 sont pas affichées (trop longues à créer et illisibles). Une valeur peut être en
 partie masquée par une zone voisine, et les petites zones (Paris et sa petite
-couronne) sont peu lisibles. Le choix de la case est mémorisé ; elle est décochée
-par défaut.
+couronne) sont peu lisibles. Le choix de la case et la taille sont mémorisés ; la case est
+décochée par défaut.
 
 ### Mise à jour automatique
 
