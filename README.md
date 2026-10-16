@@ -16,7 +16,8 @@ code INSEE dans son nom.
    ou un autre fichier `.odg` avec **Autre fichier…**.
 4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste).
 5. Vérifier les colonnes du **code**, des **valeurs** et des **libellés** : chaque
-   liste propose les colonnes sélectionnées, avec leur en-tête (ex. « D — Taux »).
+   liste propose les colonnes sélectionnées, avec leur en-tête et leurs premières
+   valeurs (ex. « D — Taux : 12,5, 8,1, 9,7 »).
 6. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
    dans la feuille, ou la décocher pour l'ouvrir dans Draw.
 7. Cocher **Afficher les valeurs** et/ou **Afficher les libellés**

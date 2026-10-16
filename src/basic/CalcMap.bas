@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.5.1"
+Const VERSION = "0.5.2"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -93,6 +93,8 @@ Const LARGEUR_IMAGE_PX = 2400            ' largeur de l'image PNG (cartes détai
 Const NOM_IMAGE = "carte-inseree.png"    ' image temporaire, dans le cache
 Const URL_CONFIGURER = "vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?language=Basic&location=application"
 Const PREFIXE_LEGENDE = "CalcMap légende"   ' nom des formes de la légende
+Const NB_VALEURS_APERCU = 3            ' valeurs montrées par colonne dans le dialogue
+Const NB_LIGNES_APERCU = 20            ' lignes parcourues pour les trouver
 Const NB_COLONNES_MAX = 26               ' colonnes proposées au plus dans le dialogue
 Const PREFIXE_LIEN = "CalcMap_"          ' plages nommées et propriétés des cartes liées
 Const ANCIEN_PREFIXE_LIEN = "ColorierCarte_"   ' liens créés par l'ancienne extension (reconnus)
@@ -1063,21 +1065,54 @@ Erreur:
 	PlageDeDonnees = Nothing
 End Function
 
-' Noms des colonnes d'une plage pour le dialogue : lettre, et en-tête (1re
-' ligne) s'il s'agit d'un texte, ex. « B — Valeur »
+' La 1re ligne d'une plage est un en-tête si une colonne y porte un texte
+' au-dessus d'un nombre (ex. « Valeur » au-dessus de 389). Des codes ou des
+' noms seuls ne suffisent pas : ils sont aussi du texte dans les données.
+Function LigneEnTete(oPlage As Object) As Boolean
+	Dim c As Long
+	On Error GoTo Erreur
+	If oPlage.getRows().getCount() < 2 Then Exit Function
+	For c = 0 To oPlage.getColumns().getCount() - 1
+		If oPlage.getCellByPosition(c, 0).getType() = com.sun.star.table.CellContentType.TEXT _
+				And oPlage.getCellByPosition(c, 1).getType() = com.sun.star.table.CellContentType.VALUE Then
+			LigneEnTete = True
+			Exit Function
+		End If
+	Next c
+Erreur:
+End Function
+
+' Noms des colonnes d'une plage pour le dialogue : lettre, en-tête (1re ligne)
+' s'il s'agit d'un texte, et premières valeurs telles qu'affichées, ex.
+' « B — Valeur : 531, 523, 840 »
 Function NomsColonnes(oPlage As Object) As Variant
-	Dim aNoms() As String, c As Long, n As Long, oCellule As Object, sEntete As String
+	Dim aNoms() As String, c As Long, n As Long, sEntete As String
+	Dim nLignes As Long, nDebut As Long, r As Long, sValeurs As String, nValeurs As Integer, sCellule As String
 	On Error GoTo Erreur
 	n = oPlage.getColumns().getCount()
+	nLignes = oPlage.getRows().getCount()
 	ReDim aNoms(n - 1) As String
+	If LigneEnTete(oPlage) Then nDebut = 1
 	For c = 0 To n - 1
 		aNoms(c) = oPlage.getColumns().getByIndex(c).getName()
-		oCellule = oPlage.getCellByPosition(c, 0)
-		If oCellule.getType() = com.sun.star.table.CellContentType.TEXT Then
-			sEntete = Trim(oCellule.getString())
+		If nDebut = 1 Then
+			sEntete = Trim(oPlage.getCellByPosition(c, 0).getString())
 			If Len(sEntete) > 30 Then sEntete = Left(sEntete, 29) & "…"
 			If sEntete <> "" Then aNoms(c) = aNoms(c) & " — " & sEntete
 		End If
+		' Premières valeurs non vides (parmi les NB_LIGNES_APERCU lignes suivantes)
+		sValeurs = ""
+		nValeurs = 0
+		For r = nDebut To nLignes - 1
+			If r >= nDebut + NB_LIGNES_APERCU Or nValeurs = NB_VALEURS_APERCU Then Exit For
+			sCellule = Trim(oPlage.getCellByPosition(c, r).getString())
+			If sCellule <> "" Then
+				If Len(sCellule) > 15 Then sCellule = Left(sCellule, 14) & "…"
+				sValeurs = sValeurs & IIf(nValeurs > 0, ", ", "") & sCellule
+				nValeurs = nValeurs + 1
+			End If
+		Next r
+		If sValeurs <> "" Then aNoms(c) = aNoms(c) & " : " & sValeurs
 	Next c
 	NomsColonnes = aNoms
 	Exit Function
