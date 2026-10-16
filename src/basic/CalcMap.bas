@@ -62,7 +62,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.4.0"
+Const VERSION = "0.4.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -517,9 +517,10 @@ Defaut:
 End Function
 
 ' Texte de la zone : un paragraphe par texte (libellé, valeur), chacun à sa
-' taille ; centré, sans retour à la ligne, sans agrandir la forme
+' taille et centré ; le bloc est centré dans la zone, sans retour à la ligne
+' et sans agrandir la forme
 Sub EcrireParagraphes(oShape As Object, aTextes As Variant, aTailles As Variant, nCouleur As Long)
-	Dim oEnum As Object, k As Integer
+	Dim oEnum As Object, oPara As Object, k As Integer
 	oShape.setString(Join(aTextes, Chr(10)))
 	oShape.TextAutoGrowHeight = False
 	oShape.TextAutoGrowWidth = False
@@ -531,7 +532,9 @@ Sub EcrireParagraphes(oShape As Object, aTextes As Variant, aTailles As Variant,
 	oEnum = oShape.getText().createEnumeration()
 	k = 0
 	Do While oEnum.hasMoreElements() And k <= UBound(aTailles)
-		oEnum.nextElement().CharHeight = aTailles(k)
+		oPara = oEnum.nextElement()
+		oPara.ParaAdjust = com.sun.star.style.ParagraphAdjust.CENTER
+		oPara.CharHeight = aTailles(k)
 		k = k + 1
 	Loop
 End Sub
@@ -1921,12 +1924,15 @@ End Sub
 ' Ajoute « Configuration de la carte… » en tête du menu si le clic droit
 ' porte sur une carte liée (ou une de ses zones)
 Function MenuCarte_notifyContextMenuExecute(oEvenement As Object) As Variant
-	Dim oCtrl As Object, oDoc As Object, oMenu As Object, oEntree As Object, oSeparateur As Object
+	Dim oSel As Object, sLien As String, oMenu As Object, oEntree As Object, oSeparateur As Object
 	On Error GoTo Ignorer
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.IGNORED
-	oCtrl = oEvenement.Selection
-	oDoc = oCtrl.getModel()
-	If LienDeSelection(oDoc, oCtrl.getSelection()) = "" Then Exit Function
+	oSel = oEvenement.Selection.getSelection()
+	' Toutes les cartes suivies sont examinées : le document n'est pas
+	' toujours accessible depuis l'événement
+	sLien = LienDeSelection(Nothing, oSel)
+	JournalAjout("Menu contextuel : sélection " & NomImplementation(oSel) & ", carte liée '" & sLien & "'")
+	If sLien = "" Then Exit Function
 	oMenu = oEvenement.ActionTriggerContainer
 	oEntree = oMenu.createInstance("com.sun.star.ui.ActionTrigger")
 	oEntree.Text = Tr("menu.configure")
@@ -1938,11 +1944,22 @@ Function MenuCarte_notifyContextMenuExecute(oEvenement As Object) As Variant
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.EXECUTE_MODIFIED
 	Exit Function
 Ignorer:
+	JournalAjout("ERREUR dans le menu contextuel " & Err & " (ligne " & Erl & ") : " & Error$)
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.IGNORED
 End Function
 
+Function NomImplementation(o As Object) As String
+	On Error GoTo Erreur
+	NomImplementation = "(aucune)"
+	If Not IsNull(o) Then NomImplementation = o.getImplementationName()
+	Exit Function
+Erreur:
+	NomImplementation = "(inconnue)"
+End Function
+
 ' Nom du lien (CalcMap_N) de la carte sélectionnée, ou d'une zone de cette
-' carte ; "" si la sélection n'est pas une carte liée
+' carte ; "" si la sélection n'est pas une carte liée. oDocCalc Nothing :
+' cartes de tous les documents
 Function LienDeSelection(oDocCalc As Object, oSel As Object) As String
 	Dim oZone As Object, oForme As Object, aChamps As Variant, i As Long, k As Long
 	On Error GoTo Erreur
@@ -1957,8 +1974,8 @@ Function LienDeSelection(oDocCalc As Object, oSel As Object) As String
 		Exit Function
 	End If
 	For i = 0 To nLiens - 1
-		If EqualUnoObjects(aLiens(i)(0), oDocCalc) Then
-			aChamps = Split(oDocCalc.getDocumentProperties().getUserDefinedProperties() _
+		If IsNull(oDocCalc) Or EqualUnoObjects(aLiens(i)(0), oDocCalc) Then
+			aChamps = Split(aLiens(i)(0).getDocumentProperties().getUserDefinedProperties() _
 				.getPropertyValue(aLiens(i)(3)), "|")
 			oForme = TrouverForme(aLiens(i)(1).getSpreadsheet().getDrawPage(), aChamps(1))
 			If Not IsNull(oForme) Then
@@ -2557,6 +2574,28 @@ Sub OuvrirJournal()
 	Exit Sub
 Erreur:
 	oJournal = Nothing        ' pas de journal : la macro fonctionne quand même
+End Sub
+
+' Ajoute une ligne au journal en dehors d'une exécution de la macro
+' (écouteurs : menu contextuel…)
+Sub JournalAjout(sTexte As String)
+	Dim oSFA As Object, oFlux As Object, oTexte As Object, sUrl As String
+	On Error GoTo Erreur
+	If Not IsNull(oJournal) Then
+		Journal(sTexte)
+		Exit Sub
+	End If
+	sUrl = CreateUnoService("com.sun.star.util.PathSubstitution") _
+		.substituteVariables("$(user)/" & NOM_JOURNAL, True)
+	oSFA = CreateUnoService("com.sun.star.ucb.SimpleFileAccess")
+	oFlux = oSFA.openFileReadWrite(sUrl)
+	oFlux.seek(oFlux.getLength())
+	oTexte = CreateUnoService("com.sun.star.io.TextOutputStream")
+	oTexte.setOutputStream(oFlux.getOutputStream())
+	oTexte.setEncoding("UTF-8")
+	oTexte.writeString(Format(Now, "yyyy-mm-dd hh:mm:ss") & "  " & sTexte & Chr(10))
+	oTexte.closeOutput()
+Erreur:
 End Sub
 
 Sub Journal(sTexte As String)
