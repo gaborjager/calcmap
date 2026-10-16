@@ -62,7 +62,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.4.3"
+Const VERSION = "0.4.4"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -1939,7 +1939,8 @@ Function MenuCarte_notifyContextMenuExecute(oEvenement As Object) As Variant
 	oEntree = oMenu.createInstance("com.sun.star.ui.ActionTrigger")
 	oEntree.setPropertyValue("Text", Tr("menu.configure"))
 	oEntree.setPropertyValue("CommandURL", URL_CONFIGURER)
-	IconeEntree(oEntree)
+	' Icône : celle déclarée pour URL_CONFIGURER dans Addons.xcu (LibreOffice
+	' 25.2 ignore la propriété Image de l'entrée)
 	oSeparateur = oMenu.createInstance("com.sun.star.ui.ActionTriggerSeparator")
 	oSeparateur.setPropertyValue("SeparatorType", com.sun.star.ui.ActionTriggerSeparatorType.LINE)
 	oMenu.insertByIndex(0, oSeparateur)
@@ -1951,20 +1952,6 @@ Ignorer:
 	JournalAjout("ERREUR dans le menu contextuel " & Err & " (ligne " & Erl & ") : " & Error$)
 	MenuCarte_notifyContextMenuExecute = com.sun.star.ui.ContextMenuInterceptorAction.IGNORED
 End Function
-
-' Icône globe de l'extension sur une entrée de menu (sans icône si impossible)
-Sub IconeEntree(oEntree As Object)
-	Dim oImage As Object
-	Dim aSource(0) As New com.sun.star.beans.PropertyValue
-	On Error GoTo Erreur
-	aSource(0).Name = "URL"
-	aSource(0).Value = DossierExtension() & "icons/carte_16.png"
-	oImage = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
-	If Not IsNull(oImage) Then oEntree.setPropertyValue("Image", oImage)
-	Exit Sub
-Erreur:
-	JournalAjout("Icône du menu non chargée : " & Error$)
-End Sub
 
 Function NomImplementation(o As Object) As String
 	On Error GoTo Erreur
