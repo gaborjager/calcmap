@@ -7,16 +7,19 @@ code INSEE dans son nom.
 
 ## Utilisation
 
-1. Dans Calc, sélectionner les données : code en 1re colonne, valeur en 2e.
-   Les colonnes suivantes sont ignorées ; on peut sélectionner des colonnes entières.
+1. Dans Calc, sélectionner les données : code en 1re colonne, valeur en 2e,
+   libellé (facultatif) en 3e. Il suffit de sélectionner les deux premières : la
+   colonne suivante est toujours lue comme libellé. Les autres colonnes sont
+   ignorées ; on peut sélectionner des colonnes entières.
 2. Cliquer sur l'icône **globe** de la barre d'outils (ou **Outils → CalcMap : colorier une carte…**).
 3. Choisir le fond de carte dans la liste déroulante (régions, départements),
    ou un autre fichier `.odg` avec **Autre fichier…**.
 4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste).
 5. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
    dans la feuille, ou la décocher pour l'ouvrir dans Draw.
-6. Cocher **Afficher les valeurs sur la carte** pour écrire la valeur de chaque
-   zone sur la carte (voir ci-dessous).
+6. Cocher **Afficher les valeurs sur la carte** et/ou **Afficher les libellés
+   (3e colonne)** pour écrire la valeur et/ou le libellé de chaque zone sur la
+   carte, et choisir leur taille (voir ci-dessous).
 
 > Les cartes des cantons et des communes du catalogue france-odg ne sont pas
 > proposées pour l'instant : elles contiennent trop de zones (constante
@@ -45,24 +48,36 @@ Elle est ancrée à sa cellule.
 
 Le choix de la case est mémorisé.
 
-### Valeurs sur la carte
+### Valeurs et libellés sur la carte
 
-Case **Afficher les valeurs sur la carte** cochée, la valeur de chaque zone est
-écrite au centre de la zone, dans la carte insérée comme dans Draw :
+Deux cases du dialogue écrivent du texte au centre de chaque zone, dans la carte
+insérée comme dans Draw : **Afficher les libellés (3e colonne)** (libellé sur la
+1re ligne) et **Afficher les valeurs sur la carte** (valeur en dessous).
 
-- au **format de nombre de la colonne Calc** (décimales, pourcentage, séparateur
-  de milliers…) : formater la colonne des valeurs avant de lancer la commande ;
-- en noir sur les couleurs claires, en blanc sur les couleurs foncées ;
-- à la **taille choisie** à côté de la case (6 pt par défaut, de 2 à 72) : flèches
-  pour +1 / −1, ou saisie directe. La taille vaut pour la carte insérée dans Calc
-  (16 cm de large) ; dans Draw, elle est adaptée pour garder le même aspect ;
-- les zones sans donnée n'affichent rien.
+- La valeur est au **format de nombre de la colonne Calc** (décimales,
+  pourcentage, séparateur de milliers…) : formater la colonne des valeurs avant
+  de lancer la commande. Le libellé est repris tel qu'il s'affiche.
+- Le texte est noir sur les couleurs claires, blanc sur les couleurs foncées.
+- Chacun a sa **taille**, à côté de sa case (10 pt par défaut, de 2 à 72) :
+  flèches pour +1 / −1, ou saisie directe. La taille vaut pour la carte insérée
+  dans Calc (16 cm de large) ; dans Draw, elle est adaptée pour garder le même
+  aspect.
+- Une zone sans valeur n'affiche que son libellé.
 
-Les valeurs suivent la mise à jour automatique. Au-delà de 5 000 zones, elles ne
-sont pas affichées (trop longues à créer et illisibles). Une valeur peut être en
-partie masquée par une zone voisine, et les petites zones (Paris et sa petite
-couronne) sont peu lisibles. Le choix de la case et la taille sont mémorisés ; la case est
-décochée par défaut.
+Valeurs et libellés suivent la mise à jour automatique (un libellé modifié dans
+la 3e colonne est aussi repris). Au-delà de 5 000 zones, aucun texte n'est
+affiché (trop long à créer et illisible). Un texte peut être en partie masqué par
+une zone voisine, et les petites zones (Paris et sa petite couronne) sont peu
+lisibles. Les choix sont mémorisés ; les deux cases sont décochées par défaut.
+
+### Configuration d'une carte insérée
+
+**Clic droit sur la carte → Configuration de la carte…** rouvre le dialogue pour
+cette carte : palette, valeurs, libellés et leurs tailles. La carte est recoloriée
+dès la validation, et ces choix servent aussi de point de départ pour la carte
+suivante. Le fond de carte ne peut pas être changé (insérer une nouvelle carte).
+Le menu fonctionne aussi sur une zone, après un double-clic pour entrer dans la
+carte.
 
 ### Mise à jour automatique
 
