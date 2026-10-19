@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.6.0"
+Const VERSION = "0.7.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -95,7 +95,7 @@ Const URL_CONFIGURER = "vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?lang
 Const PREFIXE_LEGENDE = "CalcMap légende"   ' nom des formes de la légende
 Const NB_VALEURS_APERCU = 3            ' valeurs montrées par colonne dans le dialogue
 Const NB_LIGNES_APERCU = 20            ' lignes parcourues pour les trouver
-Const NB_CLASSES_MAX = 10               ' classes personnalisées au plus
+Const NB_CLASSES_MAX = 20               ' classes personnalisées au plus
 Const NB_COLONNES_MAX = 26               ' colonnes proposées au plus dans le dialogue
 Const PREFIXE_LIEN = "CalcMap_"          ' plages nommées et propriétés des cartes liées
 Const ANCIEN_PREFIXE_LIEN = "ColorierCarte_"   ' liens créés par l'ancienne extension (reconnus)
@@ -160,6 +160,18 @@ Private nClassesEd As Integer
 Private aValeursEd As Variant       ' valeurs triées de la colonne des valeurs
 Private aPaletteEd As Variant
 Private bMajEd As Boolean           ' mise à jour des champs en cours (événements ignorés)
+Private dMinBarre As Double         ' valeurs aux extrémités de la barre de l'éditeur
+Private dMaxBarre As Double
+Private iBorneEd As Integer         ' borne sélectionnée (-1 : aucune)
+Private bGlisseEd As Boolean        ' séparateur en cours de déplacement
+Private iCouleurEd As Integer       ' classe cliquée (choix de sa couleur au relâchement)
+
+' Barre de couleurs de l'éditeur de classes (unités du dialogue)
+Const BARRE_X = 10
+Const BARRE_Y = 44
+Const BARRE_L = 300
+Const BARRE_H = 22
+Const NB_TRAITS_MAX = 300           ' traits des valeurs sous la barre, au plus
 Private oTextes As Object           ' textes traduits (clé -> texte), chargés au premier usage
 Private sLangue As String
 ' Cartes liées : Global et non Private, car ces variables doivent survivre à la
@@ -789,14 +801,38 @@ Function ClasseDe(aBornes As Variant, ByVal dVal As Double) As Integer
 	Next k
 End Function
 
-' Répartition linéaire de la palette entre dMin et dMax, bornes arrondies
-' (vers l'extérieur aux extrémités) ; dégradé continu : 5 classes
-Sub ClassesLineaires(aPalette As Variant, ByVal dMin As Double, ByVal dMax As Double, aBornes As Variant, _
-		aCouleurs As Variant, n As Integer)
-	Dim k As Integer, dPas As Double
-	If aPalette(P_CONTINU) Then n = 5 Else n = UBound(aPalette(P_COULEURS)) + 1
-	ReDim aBornes(n)
+' Répartition linéaire en nVoulu classes (0 : une par couleur de la palette,
+' 5 pour un dégradé continu) ; couleurs de la palette, étirées en dégradé si
+' le nombre de classes diffère
+Sub ClassesLineaires(aPalette As Variant, ByVal dMin As Double, ByVal dMax As Double, ByVal nVoulu As Integer, _
+		aBornes As Variant, aCouleurs As Variant, n As Integer)
+	Dim k As Integer, aPal As Variant
+	aPal = aPalette(P_COULEURS)
+	If nVoulu > 0 Then
+		n = nVoulu
+	ElseIf aPalette(P_CONTINU) Then
+		n = 5
+	Else
+		n = UBound(aPal) + 1
+	End If
+	BornesLineaires(dMin, dMax, n, aBornes)
 	ReDim aCouleurs(n - 1)
+	For k = 0 To n - 1
+		If Not aPalette(P_CONTINU) And n = UBound(aPal) + 1 Then
+			aCouleurs(k) = aPal(k)
+		ElseIf n = 1 Then
+			aCouleurs(k) = CouleurDegrade(aPal, 0.5)
+		Else
+			aCouleurs(k) = CouleurDegrade(aPal, k / (n - 1))
+		End If
+	Next k
+End Sub
+
+' n intervalles égaux entre dMin et dMax, bornes arrondies (vers l'extérieur
+' aux extrémités)
+Sub BornesLineaires(ByVal dMin As Double, ByVal dMax As Double, n As Integer, aBornes As Variant)
+	Dim k As Integer, dPas As Double
+	ReDim aBornes(n)
 	dPas = PasArrondi(dMax - dMin)
 	For k = 0 To n
 		aBornes(k) = Int((dMin + (dMax - dMin) * k / n) / dPas + 0.5) * dPas
@@ -805,13 +841,6 @@ Sub ClassesLineaires(aPalette As Variant, ByVal dMin As Double, ByVal dMax As Do
 	aBornes(n) = -Int(-dMax / dPas) * dPas
 	For k = 1 To n
 		If aBornes(k) <= aBornes(k - 1) Then aBornes(k) = aBornes(k - 1) + dPas
-	Next k
-	For k = 0 To n - 1
-		If aPalette(P_CONTINU) Then
-			aCouleurs(k) = CouleurDegrade(aPalette(P_COULEURS), k / (n - 1))
-		Else
-			aCouleurs(k) = aPalette(P_COULEURS)(k)
-		End If
 	Next k
 End Sub
 
@@ -2154,11 +2183,12 @@ Sub BoutonClasses_disposing(oEvenement As Object)
 End Sub
 
 ' ---------------------------------------------------------------------------
-' Éditeur de classes : une ligne par classe (couleur, bornes, nombre de
-' zones, diviser, supprimer) et la liste triée des valeurs. Les classes
-' restent jointives : la borne « À » d'une classe est le « De » de la
-' suivante. Renvoie le texte des classes ("" : répartition linéaire), ou
-' Chr(0) si annulé.
+' Éditeur de classes : nombre de classes, barre de couleurs à l'échelle des
+' valeurs dont on fait glisser les séparateurs (valeur affichée dessous),
+' nombre de zones par classe, un trait par valeur sous la barre, liste triée
+' des valeurs. Les classes sont jointives et couvrent toutes les valeurs.
+' Renvoie le texte des classes ("" : répartition linéaire de la palette),
+' ou Chr(0) si annulé.
 ' ---------------------------------------------------------------------------
 Function EditeurClasses(sClasses As String, aPalette As Variant, aData As Variant, iCode As Integer, _
 		iVal As Integer, iLib As Integer, oParent As Object) As String
@@ -2188,16 +2218,16 @@ End Function
 ' de la répartition linéaire
 Function ConstruireEditeur(sClasses As String, aPalette As Variant, aData As Variant, iCode As Integer, _
 		iVal As Integer, iLib As Integer, oParent As Object) As String
-	Dim oModele As Object, i As Integer, nY As Long, dMin As Double, dMax As Double
-	Dim oEcouteurBoutons As Object, oEcouteurTextes As Object, aTextesValeurs As Variant
-	Dim aBL As Variant, aCL As Variant, nL As Integer
+	Dim oModele As Object, i As Long, k As Integer, dMin As Double, dMax As Double, aTextesValeurs As Variant
+	Dim oEcouteurBoutons As Object, oEcouteurTextes As Object, oEcouteurSouris As Object, oEcouteurMvt As Object
+	Dim aBL As Variant, aCL As Variant, nL As Integer, nPas As Long, nTraits As Long
 	aPaletteEd = aPalette
 	ValeursTriees(aData, iCode, iVal, iLib, aValeursEd, aTextesValeurs)
 	If UBound(aValeursEd) >= 0 Then
 		dMin = aValeursEd(0)
 		dMax = aValeursEd(UBound(aValeursEd))
 	End If
-	ClassesLineaires(aPalette, dMin, dMax, aBL, aCL, nL)
+	ClassesLineaires(aPalette, dMin, dMax, 0, aBL, aCL, nL)
 	ConstruireEditeur = TexteClasses(aBL, aCL, nL)
 	If LireClasses(sClasses, aBornesEd, aCouleursEd) Then
 		nClassesEd = UBound(aCouleursEd) + 1
@@ -2206,58 +2236,90 @@ Function ConstruireEditeur(sClasses As String, aPalette As Variant, aData As Var
 		aCouleursEd = aCL
 		nClassesEd = nL
 	End If
+	' Les classes couvrent toutes les valeurs
+	If aBornesEd(0) > dMin Then aBornesEd(0) = aBL(0)
+	If aBornesEd(nClassesEd) < dMax Then aBornesEd(nClassesEd) = aBL(nL)
+	dMinBarre = aBornesEd(0)
+	dMaxBarre = aBornesEd(nClassesEd)
+	iBorneEd = -1
+	bGlisseEd = False
+	iCouleurEd = -1
 
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = Tr("ed.title")
-	oModele.Width = 330
-	oModele.Height = 262
-	AjouterControle(oModele, "FixedText", "lblInfo", 6, 6, 318, 10, Array("Label"), _
+	oModele.Width = 420
+	oModele.Height = 196
+	AjouterControle(oModele, "FixedText", "lblInfo", 6, 6, 320, 10, Array("Label"), _
 		Array(Tr("ed.info", NombreEd(dMin), NombreEd(dMax), UBound(aValeursEd) + 1)))
-	AjouterControle(oModele, "FixedText", "lblCol1", 6, 20, 26, 10, Array("Label"), Array(Tr("ed.color")))
-	AjouterControle(oModele, "FixedText", "lblCol2", 34, 20, 56, 10, Array("Label"), Array(Tr("ed.from")))
-	AjouterControle(oModele, "FixedText", "lblCol3", 94, 20, 56, 10, Array("Label"), Array(Tr("ed.to")))
-	AjouterControle(oModele, "FixedText", "lblCol4", 152, 20, 30, 10, Array("Label", "Align"), Array(Tr("ed.zones"), 2))
-	For i = 0 To NB_CLASSES_MAX - 1
-		nY = 32 + i * 16
-		AjouterControle(oModele, "Button", "btnCouleur" & i, 6, nY, 26, 14, _
-			Array("PushButtonType", "HelpText"), Array(0, Tr("ed.color_help")))
-		AjouterControle(oModele, "Edit", "txtDe" & i, 34, nY, 56, 14, _
-			Array("ReadOnly", "Align"), Array(i > 0, 2))
-		AjouterControle(oModele, "Edit", "txtA" & i, 94, nY, 56, 14, Array("Align"), Array(2))
-		AjouterControle(oModele, "FixedText", "lblN" & i, 152, nY + 2, 30, 10, Array("Align"), Array(2))
-		AjouterControle(oModele, "Button", "btnDiviser" & i, 186, nY, 14, 14, _
-			Array("Label", "PushButtonType", "HelpText"), Array("+", 0, Tr("ed.split_help")))
-		AjouterControle(oModele, "Button", "btnSupprimer" & i, 202, nY, 14, 14, _
-			Array("Label", "PushButtonType", "HelpText"), Array("x", 0, Tr("ed.delete_help")))
+	AjouterControle(oModele, "FixedText", "lblNombre", 6, 22, 76, 10, Array("Label"), Array(Tr("ed.count")))
+	AjouterControle(oModele, "NumericField", "numClasses", 84, 20, 34, 14, _
+		Array("Value", "ValueMin", "ValueMax", "ValueStep", "DecimalAccuracy", "Spin", "StrictFormat", "Repeat"), _
+		Array(CDbl(nClassesEd), 2#, CDbl(NB_CLASSES_MAX), 1#, 0, True, True, True))
+	AjouterControle(oModele, "Button", "btnLineaire", 124, 20, 100, 14, _
+		Array("Label", "PushButtonType", "HelpText"), Array(Tr("ed.linear"), 0, Tr("ed.linear_help")))
+	' Barre : fond (repère en pixels), une case par classe, un séparateur par
+	' borne intérieure, la valeur de chaque borne dessous
+	AjouterControle(oModele, "FixedText", "fondBarre", BARRE_X, BARRE_Y, BARRE_L, BARRE_H, _
+		Array("Border", "BackgroundColor"), Array(1, RGB(255, 255, 255)))
+	For k = 0 To NB_CLASSES_MAX - 1
+		AjouterControle(oModele, "FixedText", "seg" & k, BARRE_X, BARRE_Y, 1, BARRE_H, _
+			Array("Align", "VerticalAlign", "HelpText"), _
+			Array(1, com.sun.star.style.VerticalAlignment.MIDDLE, Tr("ed.color_help")))
+	Next k
+	For k = 1 To NB_CLASSES_MAX - 1
+		AjouterControle(oModele, "FixedText", "pgn" & k, BARRE_X, BARRE_Y - 4, 3, BARRE_H + 8, _
+			Array("BackgroundColor", "HelpText"), Array(RGB(40, 40, 40), Tr("ed.drag_help")))
+	Next k
+	For k = 0 To NB_CLASSES_MAX
+		AjouterControle(oModele, "FixedText", "lblBorne" & k, BARRE_X, BARRE_Y + BARRE_H + 5, 40, 10, _
+			Array("Align"), Array(1))
+	Next k
+	' Un trait par valeur (au plus NB_TRAITS_MAX) : où se trouvent les données
+	nPas = (UBound(aValeursEd) + 1) \ NB_TRAITS_MAX + 1
+	For i = 0 To UBound(aValeursEd) Step nPas
+		AjouterControle(oModele, "FixedText", "trait" & nTraits, XDeValeur(aValeursEd(i)), _
+			BARRE_Y + BARRE_H + 17, 1, 5, Array("BackgroundColor"), Array(RGB(96, 96, 96)))
+		nTraits = nTraits + 1
 	Next i
-	AjouterControle(oModele, "FixedText", "lblValeurs", 222, 20, 102, 10, Array("Label"), Array(Tr("ed.values")))
-	AjouterControle(oModele, "ListBox", "lstValeurs", 222, 32, 102, 158, _
-		Array("StringItemList", "ReadOnly"), Array(aTextesValeurs, True))
-	AjouterControle(oModele, "FixedText", "lblHors", 6, 194, 210, 10, Array("Label"), Array(""))
-	AjouterControle(oModele, "Button", "btnLineaire", 6, 208, 100, 14, _
-		Array("Label", "PushButtonType"), Array(Tr("ed.linear"), 0))
-	AjouterControle(oModele, "FixedText", "lblErreur", 6, 226, 318, 10, _
+	AjouterControle(oModele, "FixedText", "lblAide", 6, BARRE_Y + BARRE_H + 27, 320, 10, _
+		Array("Label", "TextColor"), Array(Tr("ed.help"), RGB(96, 96, 96)))
+	AjouterControle(oModele, "FixedText", "lblBorne", 6, 118, 100, 10, Array("Label"), Array(Tr("ed.bound")))
+	AjouterControle(oModele, "Edit", "txtBorne", 108, 116, 60, 14, Array("Align", "Enabled"), Array(2, False))
+	AjouterControle(oModele, "FixedText", "lblErreur", 6, 136, 320, 10, _
 		Array("Label", "TextColor"), Array("", RGB(192, 0, 0)))
-	AjouterControle(oModele, "Button", "btnOkEd", 218, 242, 50, 14, _
+	AjouterControle(oModele, "FixedText", "lblValeurs", 332, 6, 82, 10, Array("Label"), Array(Tr("ed.values")))
+	AjouterControle(oModele, "ListBox", "lstValeurs", 332, 18, 82, 150, _
+		Array("StringItemList", "ReadOnly"), Array(aTextesValeurs, True))
+	AjouterControle(oModele, "Button", "btnOkEd", 308, 176, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton"), Array(Tr("dlg.ok"), 0, True))
-	AjouterControle(oModele, "Button", "btnAnnulerEd", 274, 242, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnulerEd", 364, 176, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 
 	oEditeur = CreateUnoService("com.sun.star.awt.UnoControlDialog")
 	oEditeur.setModel(oModele)
 	oEcouteurBoutons = CreateUnoListener("EditeurBouton_", "com.sun.star.awt.XActionListener")
 	oEcouteurTextes = CreateUnoListener("EditeurTexte_", "com.sun.star.awt.XTextListener")
-	For i = 0 To NB_CLASSES_MAX - 1
-		oEditeur.getControl("btnCouleur" & i).addActionListener(oEcouteurBoutons)
-		oEditeur.getControl("btnDiviser" & i).addActionListener(oEcouteurBoutons)
-		oEditeur.getControl("btnSupprimer" & i).addActionListener(oEcouteurBoutons)
-		oEditeur.getControl("txtA" & i).addTextListener(oEcouteurTextes)
-	Next i
-	oEditeur.getControl("txtDe0").addTextListener(oEcouteurTextes)
+	oEcouteurSouris = CreateUnoListener("Barre_", "com.sun.star.awt.XMouseListener")
+	oEcouteurMvt = CreateUnoListener("BarreMvt_", "com.sun.star.awt.XMouseMotionListener")
 	oEditeur.getControl("btnLineaire").addActionListener(oEcouteurBoutons)
 	oEditeur.getControl("btnOkEd").addActionListener(oEcouteurBoutons)
+	oEditeur.getControl("numClasses").addTextListener(oEcouteurTextes)
+	oEditeur.getControl("txtBorne").addTextListener(oEcouteurTextes)
+	' Souris : sur les cases et les séparateurs ; le déplacement est suivi sur
+	' toute la barre (le pointeur quitte vite un séparateur étroit)
+	oEditeur.getControl("fondBarre").addMouseMotionListener(oEcouteurMvt)
+	oEditeur.getControl("fondBarre").addMouseListener(oEcouteurSouris)
+	For k = 0 To NB_CLASSES_MAX - 1
+		oEditeur.getControl("seg" & k).addMouseListener(oEcouteurSouris)
+		oEditeur.getControl("seg" & k).addMouseMotionListener(oEcouteurMvt)
+		If k > 0 Then
+			oEditeur.getControl("pgn" & k).addMouseListener(oEcouteurSouris)
+			oEditeur.getControl("pgn" & k).addMouseMotionListener(oEcouteurMvt)
+		End If
+	Next k
 	oEditeur.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), oParent)
-	AfficherClassesEd()
+	PointeursBarre()
+	AfficherBarre()
 End Function
 
 ' Valeurs numériques de la colonne iVal, triées, et leurs textes pour la
@@ -2320,80 +2382,199 @@ Function NombreEd(ByVal d As Double) As String
 End Function
 
 ' Met à jour toutes les lignes de l'éditeur
-Sub AfficherClassesEd()
-	Dim i As Integer, bVisible As Boolean
+' Position (unités du dialogue) d'une valeur sur la barre
+Function XDeValeur(ByVal d As Double) As Long
+	XDeValeur = BARRE_X + CLng((d - dMinBarre) / (dMaxBarre - dMinBarre) * BARRE_L)
+End Function
+
+' Valeur sous un point de la barre (pixels, relatifs au dialogue), arrondie
+Function ValeurDePixel(ByVal xPixel As Long) As Double
+	Dim oRect As Object, dPas As Double, d As Double
+	oRect = oEditeur.getControl("fondBarre").getPosSize()
+	d = dMinBarre + (xPixel - oRect.X) / oRect.Width * (dMaxBarre - dMinBarre)
+	dPas = PasArrondi(dMaxBarre - dMinBarre)
+	ValeurDePixel = Int(d / dPas + 0.5) * dPas
+End Function
+
+' Pointeurs de la souris : double flèche sur les séparateurs, main sur les cases
+Sub PointeursBarre()
+	Dim oFleche As Object, oMain As Object, k As Integer
+	On Error Resume Next
+	oFleche = CreateUnoService("com.sun.star.awt.Pointer")
+	oFleche.setType(com.sun.star.awt.SystemPointer.HSIZEBAR)
+	oMain = CreateUnoService("com.sun.star.awt.Pointer")
+	oMain.setType(com.sun.star.awt.SystemPointer.REFHAND)
+	For k = 0 To NB_CLASSES_MAX - 1
+		oEditeur.getControl("seg" & k).getPeer().setPointer(oMain)
+		If k > 0 Then oEditeur.getControl("pgn" & k).getPeer().setPointer(oFleche)
+	Next k
+End Sub
+
+' Met à jour la barre : cases (couleur, nombre de zones), séparateurs,
+' valeurs des bornes, nombre de classes et borne sélectionnée (sauf son
+' champ si bGarderSaisie : saisie en cours)
+Sub AfficherBarre(Optional bGarderSaisie As Variant)
+	Dim k As Integer, x1 As Long, x2 As Long, aN As Variant, oModele As Object, bVisible As Boolean
 	bMajEd = True
-	For i = 0 To NB_CLASSES_MAX - 1
-		bVisible = (i < nClassesEd)
-		oEditeur.getControl("btnCouleur" & i).setVisible(bVisible)
-		oEditeur.getControl("txtDe" & i).setVisible(bVisible)
-		oEditeur.getControl("txtA" & i).setVisible(bVisible)
-		oEditeur.getControl("lblN" & i).setVisible(bVisible)
-		oEditeur.getControl("btnDiviser" & i).setVisible(bVisible)
-		oEditeur.getControl("btnSupprimer" & i).setVisible(bVisible)
+	aN = CompterClasses()
+	For k = 0 To NB_CLASSES_MAX - 1
+		oModele = oEditeur.getControl("seg" & k).getModel()
+		bVisible = (k < nClassesEd)
+		oEditeur.getControl("seg" & k).setVisible(bVisible)
 		If bVisible Then
-			oEditeur.getControl("btnCouleur" & i).getModel().BackgroundColor = aCouleursEd(i)
-			oEditeur.getControl("txtDe" & i).getModel().Text = NombreEd(aBornesEd(i))
-			oEditeur.getControl("txtA" & i).getModel().Text = NombreEd(aBornesEd(i + 1))
-			oEditeur.getControl("btnDiviser" & i).getModel().Enabled = (nClassesEd < NB_CLASSES_MAX)
-			oEditeur.getControl("btnSupprimer" & i).getModel().Enabled = (nClassesEd > 1)
+			x1 = XDeValeur(aBornesEd(k))
+			x2 = XDeValeur(aBornesEd(k + 1))
+			oModele.PositionX = x1
+			oModele.Width = IIf(x2 - x1 < 1, 1, x2 - x1)
+			oModele.BackgroundColor = aCouleursEd(k)
+			oModele.TextColor = CouleurTexte(aCouleursEd(k))
+			oModele.Label = IIf(x2 - x1 >= 8, CStr(aN(k)), "")
 		End If
-	Next i
-	oEditeur.getControl("lblErreur").getModel().Label = ""
+		If k > 0 Then
+			oEditeur.getControl("pgn" & k).setVisible(k < nClassesEd)
+			If k < nClassesEd Then
+				oEditeur.getControl("pgn" & k).getModel().PositionX = XDeValeur(aBornesEd(k)) - 1
+				oEditeur.getControl("pgn" & k).getModel().BackgroundColor = _
+					IIf(k = iBorneEd, RGB(220, 0, 0), RGB(40, 40, 40))
+			End If
+		End If
+	Next k
+	For k = 0 To NB_CLASSES_MAX
+		oModele = oEditeur.getControl("lblBorne" & k).getModel()
+		oEditeur.getControl("lblBorne" & k).setVisible(k <= nClassesEd)
+		If k <= nClassesEd Then
+			x1 = XDeValeur(aBornesEd(k)) - 20
+			If x1 < 0 Then x1 = 0
+			oModele.PositionX = x1
+			oModele.Label = NombreEd(aBornesEd(k))
+			oModele.TextColor = IIf(k = iBorneEd, RGB(220, 0, 0), RGB(0, 0, 0))
+		End If
+	Next k
+	If oEditeur.getControl("numClasses").getValue() <> nClassesEd Then
+		oEditeur.getControl("numClasses").setValue(nClassesEd)
+	End If
+	oEditeur.getControl("txtBorne").getModel().Enabled = (iBorneEd > 0)
+	If IsMissing(bGarderSaisie) Then
+		oEditeur.getControl("txtBorne").setText(IIf(iBorneEd > 0, NombreEd(aBornesEd(iBorneEd)), ""))
+	End If
 	bMajEd = False
-	CompterClassesEd()
 End Sub
 
 ' Nombre de zones par classe, et hors des classes
-Sub CompterClassesEd()
-	Dim aN() As Long, i As Long, k As Integer, nHors As Long
+' Nombre de zones par classe
+Function CompterClasses() As Variant
+	Dim aN() As Long, i As Long, k As Integer
 	ReDim aN(nClassesEd - 1) As Long
 	For i = 0 To UBound(aValeursEd)
 		k = ClasseDe(aBornesEd, aValeursEd(i))
-		If k < 0 Then nHors = nHors + 1 Else aN(k) = aN(k) + 1
+		If k >= 0 Then aN(k) = aN(k) + 1
 	Next i
-	For k = 0 To nClassesEd - 1
-		oEditeur.getControl("lblN" & k).getModel().Label = CStr(aN(k))
-	Next k
-	oEditeur.getControl("lblHors").getModel().Label = IIf(nHors > 0, Tr("ed.outside", nHors), "")
+	CompterClasses = aN
+End Function
+
+' Souris sur la barre : appui sur un séparateur (début du déplacement) ou sur
+' une case (choix de sa couleur au relâchement)
+Sub Barre_mousePressed(oEvenement As Object)
+	Dim sNom As String
+	On Error Resume Next
+	sNom = oEvenement.Source.getModel().Name
+	iCouleurEd = -1
+	If Left(sNom, 3) = "pgn" Then
+		iBorneEd = CInt(Mid(sNom, 4))
+		bGlisseEd = True
+		oEditeur.getControl("lblErreur").getModel().Label = ""
+		AfficherBarre()
+	ElseIf Left(sNom, 3) = "seg" Then
+		iCouleurEd = CInt(Mid(sNom, 4))
+	End If
+End Sub
+
+Sub Barre_mouseReleased(oEvenement As Object)
+	Dim k As Integer, nCouleur As Long
+	On Error Resume Next
+	If bGlisseEd Then
+		bGlisseEd = False
+		AfficherBarre()
+	ElseIf iCouleurEd >= 0 Then
+		k = iCouleurEd
+		iCouleurEd = -1
+		nCouleur = ChoisirCouleur(aCouleursEd(k), oEditeur.getPeer())
+		If nCouleur >= 0 Then
+			aCouleursEd(k) = nCouleur
+			AfficherBarre()
+		End If
+	End If
+End Sub
+
+' Déplacement d'un séparateur : la borne suit la souris, entre ses voisines
+Sub BarreMvt_mouseDragged(oEvenement As Object)
+	Dim d As Double, dPas As Double, k As Integer
+	On Error Resume Next
+	If Not bGlisseEd Or iBorneEd <= 0 Then Exit Sub
+	k = iBorneEd
+	d = ValeurDePixel(oEvenement.Source.getPosSize().X + oEvenement.X)
+	dPas = PasArrondi(dMaxBarre - dMinBarre)
+	If d < aBornesEd(k - 1) + dPas Then d = aBornesEd(k - 1) + dPas
+	If d > aBornesEd(k + 1) - dPas Then d = aBornesEd(k + 1) - dPas
+	If d <> aBornesEd(k) Then
+		aBornesEd(k) = d
+		AfficherBarre()
+	End If
+End Sub
+
+Sub BarreMvt_mouseMoved(oEvenement As Object)
+End Sub
+
+Sub BarreMvt_disposing(oEvenement As Object)
+End Sub
+
+Sub Barre_mouseEntered(oEvenement As Object)
+End Sub
+
+Sub Barre_mouseExited(oEvenement As Object)
+End Sub
+
+Sub Barre_disposing(oEvenement As Object)
 End Sub
 
 ' Saisie d'une borne : « À » de la ligne i (= « De » de la suivante), ou
 ' « De » de la 1re ligne
+' Nombre de classes (répartition linéaire, couleurs de la palette) ou valeur
+' saisie de la borne sélectionnée
 Sub EditeurTexte_textChanged(oEvenement As Object)
-	Dim sNom As String, i As Integer, d As Double
+	Dim sNom As String, d As Double, n As Integer, k As Integer
 	On Error Resume Next
 	If bMajEd Then Exit Sub
 	sNom = oEvenement.Source.getModel().Name
-	If Not EnNombre(oEvenement.Source.getText(), d) Then
-		oEditeur.getControl("lblErreur").getModel().Label = Tr("ed.not_number")
-		Exit Sub
-	End If
 	oEditeur.getControl("lblErreur").getModel().Label = ""
-	If sNom = "txtDe0" Then
-		aBornesEd(0) = d
-	Else
-		i = CInt(Mid(sNom, 5))
-		aBornesEd(i + 1) = d
-		If i + 1 < nClassesEd Then
-			bMajEd = True
-			oEditeur.getControl("txtDe" & (i + 1)).getModel().Text = NombreEd(d)
-			bMajEd = False
+	If sNom = "numClasses" Then
+		n = CInt(oEditeur.getControl("numClasses").getValue())
+		If n < 2 Or n > NB_CLASSES_MAX Or n = nClassesEd Then Exit Sub
+		ClassesLineaires(aPaletteEd, MinEd(), MaxEd(), n, aBornesEd, aCouleursEd, nClassesEd)
+		iBorneEd = -1
+		AfficherBarre()
+	ElseIf sNom = "txtBorne" And iBorneEd > 0 Then
+		k = iBorneEd
+		If Not EnNombre(oEvenement.Source.getText(), d) Then
+			oEditeur.getControl("lblErreur").getModel().Label = Tr("ed.not_number")
+		ElseIf d <= aBornesEd(k - 1) Or d >= aBornesEd(k + 1) Then
+			oEditeur.getControl("lblErreur").getModel().Label = _
+				Tr("ed.between", NombreEd(aBornesEd(k - 1)), NombreEd(aBornesEd(k + 1)))
+		Else
+			aBornesEd(k) = d
+			AfficherBarre(True)
 		End If
 	End If
-	CompterClassesEd()
 End Sub
 
 Sub EditeurTexte_disposing(oEvenement As Object)
 End Sub
 
 Sub EditeurBouton_actionPerformed(oEvenement As Object)
-	Dim sNom As String, i As Integer, k As Integer, nCouleur As Long, aPal As Variant
-	Dim aB As Variant, aC As Variant, n As Integer
+	Dim sNom As String, k As Integer
 	On Error GoTo Erreur
 	sNom = oEvenement.Source.getModel().Name
 	If sNom = "btnOkEd" Then
-		' Bornes croissantes exigées
 		For k = 1 To nClassesEd
 			If aBornesEd(k) <= aBornesEd(k - 1) Then
 				oEditeur.getControl("lblErreur").getModel().Label = Tr("ed.not_increasing", k)
@@ -2402,52 +2583,11 @@ Sub EditeurBouton_actionPerformed(oEvenement As Object)
 		Next k
 		oEditeur.endDialog(1)
 	ElseIf sNom = "btnLineaire" Then
-		ClassesLineaires(aPaletteEd, MinEd(), MaxEd(), aB, aC, n)
-		aBornesEd = aB
-		aCouleursEd = aC
-		nClassesEd = n
-		AfficherClassesEd()
-	ElseIf Left(sNom, 10) = "btnCouleur" Then
-		i = CInt(Mid(sNom, 11))
-		nCouleur = ChoisirCouleur(aCouleursEd(i), oEditeur.getPeer())
-		If nCouleur >= 0 Then
-			aCouleursEd(i) = nCouleur
-			oEditeur.getControl(sNom).getModel().BackgroundColor = nCouleur
-		End If
-	ElseIf Left(sNom, 10) = "btnDiviser" Then
-		' Coupe la classe i en deux au milieu ; la nouvelle garde sa couleur
-		i = CInt(Mid(sNom, 11))
-		If nClassesEd >= NB_CLASSES_MAX Then Exit Sub
-		ReDim Preserve aBornesEd(nClassesEd + 1)
-		ReDim Preserve aCouleursEd(nClassesEd)
-		For k = nClassesEd + 1 To i + 2 Step -1
-			aBornesEd(k) = aBornesEd(k - 1)
-		Next k
-		aBornesEd(i + 1) = (aBornesEd(i) + aBornesEd(i + 2)) / 2
-		For k = nClassesEd To i + 1 Step -1
-			aCouleursEd(k) = aCouleursEd(k - 1)
-		Next k
-		nClassesEd = nClassesEd + 1
-		AfficherClassesEd()
-	ElseIf Left(sNom, 12) = "btnSupprimer" Then
-		' Supprime la classe i : la suivante (ou la précédente pour la
-		' dernière) reprend son intervalle
-		i = CInt(Mid(sNom, 13))
-		If nClassesEd <= 1 Then Exit Sub
-		If i < nClassesEd - 1 Then
-			For k = i + 1 To nClassesEd - 1
-				aBornesEd(k) = aBornesEd(k + 1)
-			Next k
-		Else
-			aBornesEd(nClassesEd - 1) = aBornesEd(nClassesEd)
-		End If
-		For k = i To nClassesEd - 2
-			aCouleursEd(k) = aCouleursEd(k + 1)
-		Next k
-		nClassesEd = nClassesEd - 1
-		ReDim Preserve aBornesEd(nClassesEd)
-		ReDim Preserve aCouleursEd(nClassesEd - 1)
-		AfficherClassesEd()
+		' Bornes à intervalles égaux ; nombre de classes et couleurs gardés
+		BornesLineaires(MinEd(), MaxEd(), nClassesEd, aBornesEd)
+		oEditeur.getControl("lblErreur").getModel().Label = ""
+		iBorneEd = -1
+		AfficherBarre()
 	End If
 	Exit Sub
 Erreur:

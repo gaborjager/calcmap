@@ -145,22 +145,24 @@ Par défaut, les valeurs sont réparties en classes d'intervalles égaux, une pa
 couleur de la palette. Le bouton **Classes…** (à droite de la palette) ouvre
 l'éditeur de classes, sur les données de la colonne des valeurs choisie :
 
-- une ligne par classe : **couleur** (clic : sélecteur de couleur de
-  LibreOffice), bornes **De** et **À**, nombre de **zones** de la classe ;
-- **+** coupe la classe en deux au milieu, **x** la supprime (sa voisine reprend
-  son intervalle) ; 10 classes au plus ;
-- modifier la borne **À** d'une classe déplace aussi le **De** de la suivante :
-  les classes restent jointives. Le nombre de zones se met à jour à la saisie ;
-- pour placer les bornes, la liste de droite donne toutes les valeurs triées,
-  avec le libellé de chaque zone, et le haut de l'éditeur le minimum et le
-  maximum ;
-- les valeurs hors des classes (sous le 1er « De » ou au-dessus du dernier
-  « À ») restent en couleur par défaut et sont comptées ;
-- **Répartition linéaire** revient aux classes de la palette (bornes arrondies).
+- **Nombre de classes** (flèches ou saisie, de 2 à 20) : les classes sont
+  réparties à intervalles égaux, couleurs de la palette étirées en dégradé ;
+- une **barre de couleurs** à l'échelle des valeurs : **glisser** un séparateur
+  vers la gauche ou la droite déplace la borne entre deux classes (elle reste
+  entre ses voisines) ; la valeur de chaque borne est affichée dessous ;
+  **cliquer** sur une couleur ouvre le sélecteur de couleur ;
+- chaque case affiche son **nombre de zones**, et sous la barre un trait par
+  valeur montre où se concentrent les données ; la liste de droite donne toutes
+  les valeurs triées, avec le libellé de chaque zone ;
+- **Borne sélectionnée** : la valeur exacte du dernier séparateur touché, à
+  saisir au clavier ;
+- **Répartition linéaire** remet des intervalles égaux, en gardant le nombre de
+  classes et les couleurs.
 
-Les classes sont gardées avec la carte (mise à jour automatique, légende,
-*Configuration de la carte…*), mais pas pour la carte suivante. Choisir une
-autre palette remplace les classes personnalisées.
+Les classes couvrent toujours toutes les valeurs (du minimum au maximum). Elles
+sont gardées avec la carte (mise à jour automatique, légende, *Configuration de
+la carte…*), mais pas pour la carte suivante. Choisir une autre palette remplace
+les classes personnalisées.
 
 **Ajouter ses palettes**, sans reconstruire l'extension : créer un fichier
 `palettes.json` dans le dossier du cache (voir ci-dessous). Ses palettes s'ajoutent
