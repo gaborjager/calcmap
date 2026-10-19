@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.7.1"
+Const VERSION = "0.7.2"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -2257,21 +2257,23 @@ Function ConstruireEditeur(sClasses As String, aPalette As Variant, aData As Var
 		Array(CDbl(nClassesEd), 2#, CDbl(NB_CLASSES_MAX), 1#, 0, True, True, True))
 	AjouterControle(oModele, "Button", "btnLineaire", 124, 20, 100, 14, _
 		Array("Label", "PushButtonType", "HelpText"), Array(Tr("ed.linear"), 0, Tr("ed.linear_help")))
-	' Barre : fond (repère en pixels), une case par classe, un séparateur par
-	' borne intérieure, la valeur de chaque borne dessous
-	AjouterControle(oModele, "FixedText", "fondBarre", BARRE_X, BARRE_Y, BARRE_L, BARRE_H, _
-		Array("Border", "BackgroundColor"), Array(1, RGB(255, 255, 255)))
+	' Barre : une case par classe, une poignée au-dessus de chaque borne
+	' intérieure, la valeur de chaque borne dessous, et une ligne sous la
+	' barre (repère en pixels). Aucun contrôle n'en recouvre un autre :
+	' LibreOffice ne garantit pas l'ordre de dessin des contrôles superposés.
+	AjouterControle(oModele, "FixedText", "fondBarre", BARRE_X, BARRE_Y + BARRE_H, BARRE_L, 1, _
+		Array("BackgroundColor"), Array(RGB(160, 160, 160)))
 	For k = 0 To NB_CLASSES_MAX - 1
 		AjouterControle(oModele, "FixedText", "seg" & k, BARRE_X, BARRE_Y, 1, BARRE_H, _
 			Array("Align", "VerticalAlign", "HelpText"), _
 			Array(1, com.sun.star.style.VerticalAlignment.MIDDLE, Tr("ed.color_help")))
 	Next k
 	For k = 1 To NB_CLASSES_MAX - 1
-		AjouterControle(oModele, "FixedText", "pgn" & k, BARRE_X, BARRE_Y - 4, 3, BARRE_H + 8, _
+		AjouterControle(oModele, "FixedText", "pgn" & k, BARRE_X, BARRE_Y - 9, 5, 8, _
 			Array("BackgroundColor", "HelpText"), Array(RGB(40, 40, 40), Tr("ed.drag_help")))
 	Next k
 	For k = 0 To NB_CLASSES_MAX
-		AjouterControle(oModele, "FixedText", "lblBorne" & k, BARRE_X, BARRE_Y + BARRE_H + 5, 40, 10, _
+		AjouterControle(oModele, "FixedText", "lblBorne" & k, BARRE_X, BARRE_Y + BARRE_H + 4, 26, 10, _
 			Array("Align"), Array(1))
 	Next k
 	' Un trait par valeur (au plus NB_TRAITS_MAX) : où se trouvent les données
@@ -2389,6 +2391,7 @@ End Function
 
 ' Valeur sous un point de la barre (pixels, relatifs au dialogue), arrondie
 Function ValeurDePixel(ByVal xPixel As Long) As Double
+	' fondBarre : ligne sous la barre, de même abscisse et même largeur
 	Dim oRect As Object, dPas As Double, d As Double
 	oRect = oEditeur.getControl("fondBarre").getPosSize()
 	d = dMinBarre + (xPixel - oRect.X) / oRect.Width * (dMaxBarre - dMinBarre)
@@ -2433,7 +2436,7 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 		If k > 0 Then
 			oEditeur.getControl("pgn" & k).setVisible(k < nClassesEd)
 			If k < nClassesEd Then
-				oEditeur.getControl("pgn" & k).getModel().PositionX = XDeValeur(aBornesEd(k)) - 1
+				oEditeur.getControl("pgn" & k).getModel().PositionX = XDeValeur(aBornesEd(k)) - 2
 				oEditeur.getControl("pgn" & k).getModel().BackgroundColor = _
 					IIf(k = iBorneEd, RGB(220, 0, 0), RGB(40, 40, 40))
 			End If
@@ -2443,7 +2446,7 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 		oModele = oEditeur.getControl("lblBorne" & k).getModel()
 		oEditeur.getControl("lblBorne" & k).setVisible(k <= nClassesEd)
 		If k <= nClassesEd Then
-			x1 = XDeValeur(aBornesEd(k)) - 20
+			x1 = XDeValeur(aBornesEd(k)) - 13
 			If x1 < 0 Then x1 = 0
 			oModele.PositionX = x1
 			oModele.Label = NombreEd(aBornesEd(k))
@@ -3374,7 +3377,7 @@ Erreur:
 End Sub
 
 ' Texte traduit ; %1 et %2 sont remplacés par v1 et v2. Clé inconnue : la clé.
-Function Tr(sCle As String, Optional v1 As Variant, Optional v2 As Variant) As String
+Function Tr(sCle As String, Optional v1 As Variant, Optional v2 As Variant, Optional v3 As Variant) As String
 	Dim s As String
 	On Error GoTo Erreur
 	If IsNull(oTextes) Then ChargerTextes()
@@ -3382,6 +3385,7 @@ Function Tr(sCle As String, Optional v1 As Variant, Optional v2 As Variant) As S
 	If oTextes.containsKey(sCle) Then s = oTextes.get(sCle)
 	If Not IsMissing(v1) Then s = Replace(s, "%1", CStr(v1))
 	If Not IsMissing(v2) Then s = Replace(s, "%2", CStr(v2))
+	If Not IsMissing(v3) Then s = Replace(s, "%3", CStr(v3))
 	Tr = s
 	Exit Function
 Erreur:
