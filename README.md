@@ -14,7 +14,8 @@ code INSEE dans son nom.
 2. Cliquer sur l'icône **globe** de la barre d'outils (ou **Outils → CalcMap : colorier une carte…**).
 3. Choisir le fond de carte dans la liste déroulante (régions, départements),
    ou un autre fichier `.odg` avec **Autre fichier…**.
-4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste).
+4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste), et
+   au besoin personnaliser les classes avec **Classes…** (voir ci-dessous).
 5. Vérifier les colonnes du **code**, des **valeurs** et des **libellés** : chaque
    liste propose les colonnes sélectionnées, avec leur en-tête et leurs premières
    valeurs (ex. « D — Taux : 12,5, 8,1, 9,7 »).
@@ -137,6 +138,29 @@ En **dégradé continu**, il n'y a pas de classes : chaque zone reçoit une coul
 interpolée selon sa valeur exacte, entre le minimum (première couleur) et le
 maximum (dernière couleur). Les couleurs intermédiaires de la palette sont des
 étapes du dégradé (utile pour une palette divergente : bas → milieu → haut).
+
+### Classes personnalisées
+
+Par défaut, les valeurs sont réparties en classes d'intervalles égaux, une par
+couleur de la palette. Le bouton **Classes…** (à droite de la palette) ouvre
+l'éditeur de classes, sur les données de la colonne des valeurs choisie :
+
+- une ligne par classe : **couleur** (clic : sélecteur de couleur de
+  LibreOffice), bornes **De** et **À**, nombre de **zones** de la classe ;
+- **+** coupe la classe en deux au milieu, **x** la supprime (sa voisine reprend
+  son intervalle) ; 10 classes au plus ;
+- modifier la borne **À** d'une classe déplace aussi le **De** de la suivante :
+  les classes restent jointives. Le nombre de zones se met à jour à la saisie ;
+- pour placer les bornes, la liste de droite donne toutes les valeurs triées,
+  avec le libellé de chaque zone, et le haut de l'éditeur le minimum et le
+  maximum ;
+- les valeurs hors des classes (sous le 1er « De » ou au-dessus du dernier
+  « À ») restent en couleur par défaut et sont comptées ;
+- **Répartition linéaire** revient aux classes de la palette (bornes arrondies).
+
+Les classes sont gardées avec la carte (mise à jour automatique, légende,
+*Configuration de la carte…*), mais pas pour la carte suivante. Choisir une
+autre palette remplace les classes personnalisées.
 
 **Ajouter ses palettes**, sans reconstruire l'extension : créer un fichier
 `palettes.json` dans le dossier du cache (voir ci-dessous). Ses palettes s'ajoutent

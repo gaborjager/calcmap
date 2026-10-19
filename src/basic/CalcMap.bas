@@ -1,4 +1,4 @@
-REM  CalcMap — cartes thématiques pour LibreOffice Calc
+REM  CalcMap - cartes thématiques pour LibreOffice Calc
 REM  ===================================================
 REM  Colorie les zones d'un fond de carte .odg (une forme par zone, nommée
 REM  avec son code, ex. code INSEE) à partir de 2 colonnes Calc : code | valeur.
@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.5.2"
+Const VERSION = "0.6.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -95,6 +95,7 @@ Const URL_CONFIGURER = "vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?lang
 Const PREFIXE_LEGENDE = "CalcMap légende"   ' nom des formes de la légende
 Const NB_VALEURS_APERCU = 3            ' valeurs montrées par colonne dans le dialogue
 Const NB_LIGNES_APERCU = 20            ' lignes parcourues pour les trouver
+Const NB_CLASSES_MAX = 10               ' classes personnalisées au plus
 Const NB_COLONNES_MAX = 26               ' colonnes proposées au plus dans le dialogue
 Const PREFIXE_LIEN = "CalcMap_"          ' plages nommées et propriétés des cartes liées
 Const ANCIEN_PREFIXE_LIEN = "ColorierCarte_"   ' liens créés par l'ancienne extension (reconnus)
@@ -124,9 +125,12 @@ Const O_COL_VALEUR = 9
 Const O_COL_LIBELLE = 10
 Const O_LEGENDE = 11
 Const O_LEGENDE_VALEURS = 12
-Const NB_OPTIONS = 13
-Const NOMS_OPTIONS = "valeurs|taille_valeurs|libelles|taille_libelles|police_valeurs|style_valeurs|police_libelles|style_libelles|col_code|col_valeur|col_libelle|legende|legende_valeurs"
-Const TYPES_OPTIONS = "bnbnsssscccbb"    ' b : oui/non, n : taille, s : texte, c : colonne
+Const O_CLASSES = 13                ' classes personnalisées (TexteClasses) ; "" : répartition linéaire
+Const NB_OPTIONS = 14
+Const NOMS_OPTIONS = "valeurs|taille_valeurs|libelles|taille_libelles|police_valeurs|style_valeurs|police_libelles|style_libelles|col_code|col_valeur|col_libelle|legende|legende_valeurs|classes"
+Const TYPES_OPTIONS = "bnbnsssscccbbk"   ' b : oui/non, n : taille, s : texte, c : colonne, k : classes
+' Les options c et k, propres à chaque tableau, sont gardées dans le lien
+' de la carte mais pas dans les préférences.
 
 ' Contexte d'un coloriage (tableau renvoyé par ContexteTexte)
 Const T_FORMATEUR = 0
@@ -147,6 +151,15 @@ Private sCheminJournal As String
 Private oDialogue As Object         ' dialogue de choix de carte (pour ses écouteurs)
 Private aCartesDialogue As Variant
 Private aPalettesDialogue As Variant
+Private aDonneesDialogue As Variant ' données de la sélection (éditeur de classes)
+Private sClassesDialogue As String  ' classes personnalisées en cours ("" : linéaires)
+Private oEditeur As Object          ' éditeur de classes et son état
+Private aBornesEd As Variant
+Private aCouleursEd As Variant
+Private nClassesEd As Integer
+Private aValeursEd As Variant       ' valeurs triées de la colonne des valeurs
+Private aPaletteEd As Variant
+Private bMajEd As Boolean           ' mise à jour des champs en cours (événements ignorés)
 Private oTextes As Object           ' textes traduits (clé -> texte), chargés au premier usage
 Private sLangue As String
 ' Cartes liées : Global et non Private, car ces variables doivent survivre à la
@@ -173,7 +186,7 @@ Sub CalcMap()
 	On Error GoTo Erreur
 
 	OuvrirJournal()
-	Journal("CalcMap " & VERSION & " — début")
+	Journal("CalcMap " & VERSION & " - début")
 	ChargerTextes()
 
 	oDocCalc = ThisComponent
@@ -196,7 +209,7 @@ Sub CalcMap()
 	aData = oPlage.getDataArray()
 	aColonnes = NomsColonnes(oPlage)
 
-	sUrl = ChoisirFondDeCarte(oDocCalc, bDuCache, aPalette, bInserer, aOptions, aColonnes)
+	sUrl = ChoisirFondDeCarte(oDocCalc, bDuCache, aPalette, bInserer, aOptions, aColonnes, aData)
 	If sUrl = "" Then
 		Journal("Choix du fond de carte annulé ou impossible.")
 		GoTo Fin
@@ -299,10 +312,12 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 	Dim sNom As String, dVal As Double, iClasse As Integer
 	Dim i As Long, j As Long, nOk As Long, nSans As Long
 	Dim oUtilises As Object, sCle As String, oEnum As Object, nInconnus As Long
+	Dim bPerso As Boolean, aBornes As Variant, aCouleursPerso As Variant, nHors As Long
 	On Error GoTo Erreur
 	ColorierConteneurs = 0
 	oUtilises = com.sun.star.container.EnumerableMap.create("string", "boolean")
 	aOptions = vTexte(T_OPTIONS)
+	bPerso = LireClasses(aOptions(O_CLASSES), aBornes, aCouleursPerso)
 
 	oMap = com.sun.star.container.EnumerableMap.create("string", "double")
 	oLibelles = com.sun.star.container.EnumerableMap.create("string", "string")
@@ -317,7 +332,9 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 	aCouleurs = aPalette(P_COULEURS)
 	nClasses = UBound(aCouleurs) + 1
 	bContinu = aPalette(P_CONTINU)
-	If bContinu Then
+	If bPerso Then
+		Journal("Classes personnalisées : " & aOptions(O_CLASSES))
+	ElseIf bContinu Then
 		Journal("Palette : " & aPalette(P_ID) & " (dégradé continu, " & nClasses & " couleurs)")
 	Else
 		Journal("Palette : " & aPalette(P_ID) & " (" & nClasses & " classes)")
@@ -359,7 +376,16 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 					Else
 						dPosition = (dVal - dMin) / (dMax - dMin)
 					End If
-					If bContinu Then
+					If bPerso Then
+						iClasse = ClasseDe(aBornes, dVal)
+						If iClasse < 0 Then
+							nCouleur = aPalette(P_VIDE)
+							nHors = nHors + 1
+							Journal("  " & sNom & " = " & dVal & " : hors des classes -> couleur par défaut")
+						Else
+							nCouleur = aCouleursPerso(iClasse)
+						End If
+					ElseIf bContinu Then
 						nCouleur = CouleurDegrade(aCouleurs, dPosition)
 					Else
 						iClasse = Int(dPosition * nClasses)
@@ -394,13 +420,13 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 		End If
 	Loop
 	Journal("Zones coloriées : " & nOk & " ; sans donnée (couleur par défaut) : " & nSans _
-		& " ; codes inconnus de la carte : " & nInconnus)
+		& " ; codes inconnus de la carte : " & nInconnus & IIf(bPerso, " ; hors des classes : " & nHors, ""))
 
 	' Légende : retirée puis recréée (couleurs et bornes à jour)
 	If Not IsNull(vTexte(T_DOCUMENT)) Then
 		SupprimerLegende(aConteneurs(0))
 		If aOptions(O_LEGENDE) Then CreerLegende(vTexte, aConteneurs(0), aPalette, dMin, dMax, _
-			nValides > 0, nSans > 0, dEchelle)
+			nValides > 0, nSans + nHors > 0, dEchelle)
 	End If
 	ColorierConteneurs = nOk
 	Exit Function
@@ -526,7 +552,13 @@ End Function
 ' Options de texte (voir O_*), tailles ramenées dans les bornes
 Function OptionsParDefaut() As Variant
 	OptionsParDefaut = Array(False, TAILLE_TEXTE, False, TAILLE_TEXTE, POLICE_TEXTE, "", POLICE_TEXTE, "", _
-		0, 1, 2, False, True)
+		0, 1, 2, False, True, "")
+End Function
+
+' Option gardée dans les préférences (ni colonnes ni classes, propres à
+' chaque tableau)
+Function OptionMemorisee(k As Integer) As Boolean
+	OptionMemorisee = (InStr("ck", Mid(TYPES_OPTIONS, k + 1, 1)) = 0)
 End Function
 
 Function NomOption(k As Integer) As String
@@ -696,6 +728,103 @@ Sub CopierTexte(oSource As Object, oCopie As Object, dEchelle As Double)
 End Sub
 
 ' ---------------------------------------------------------------------------
+' Classes personnalisées : bornes b0 < b1 < … < bn et une couleur par classe
+' [b(k), b(k+1)[ (la dernière inclut bn). Texte (option O_CLASSES, lien) :
+' "b0;b1;…;bn/rrggbb;…" (bornes au format Str, point décimal).
+' ---------------------------------------------------------------------------
+Function TexteClasses(aBornes As Variant, aCouleurs As Variant, n As Integer) As String
+	Dim k As Integer, s As String, c As String
+	For k = 0 To n
+		s = s & IIf(k > 0, ";", "") & Trim(Str(aBornes(k)))
+	Next k
+	s = s & "/"
+	For k = 0 To n - 1
+		c = Hex(aCouleurs(k))
+		s = s & IIf(k > 0, ";", "") & String(6 - Len(c), "0") & c
+	Next k
+	TexteClasses = LCase(s)
+End Function
+
+' Lit un texte de classes ; False s'il est vide ou mal formé
+Function LireClasses(sTexte As String, aBornes As Variant, aCouleurs As Variant) As Boolean
+	Dim aParties As Variant, aB As Variant, aC As Variant, k As Integer, n As Integer
+	On Error GoTo Erreur
+	LireClasses = False
+	If sTexte = "" Then Exit Function
+	aParties = Split(sTexte, "/")
+	If UBound(aParties) <> 1 Then Exit Function
+	aB = Split(aParties(0), ";")
+	aC = Split(aParties(1), ";")
+	n = UBound(aC) + 1
+	If n < 1 Or UBound(aB) <> n Then Exit Function
+	ReDim aBornes(n)
+	ReDim aCouleurs(n - 1)
+	For k = 0 To n
+		aBornes(k) = Val(aB(k))
+		If k > 0 Then
+			If aBornes(k) <= aBornes(k - 1) Then Exit Function
+		End If
+	Next k
+	For k = 0 To n - 1
+		aCouleurs(k) = CouleurHexa(CStr(aC(k)))
+		If aCouleurs(k) < 0 Then Exit Function
+	Next k
+	LireClasses = True
+	Exit Function
+Erreur:
+	LireClasses = False
+End Function
+
+' Classe d'une valeur (-1 hors des classes)
+Function ClasseDe(aBornes As Variant, ByVal dVal As Double) As Integer
+	Dim k As Integer, n As Integer
+	n = UBound(aBornes)
+	ClasseDe = -1
+	If dVal < aBornes(0) Or dVal > aBornes(n) Then Exit Function
+	For k = 0 To n - 1
+		If dVal < aBornes(k + 1) Or k = n - 1 Then
+			ClasseDe = k
+			Exit Function
+		End If
+	Next k
+End Function
+
+' Répartition linéaire de la palette entre dMin et dMax, bornes arrondies
+' (vers l'extérieur aux extrémités) ; dégradé continu : 5 classes
+Sub ClassesLineaires(aPalette As Variant, ByVal dMin As Double, ByVal dMax As Double, aBornes As Variant, _
+		aCouleurs As Variant, n As Integer)
+	Dim k As Integer, dPas As Double
+	If aPalette(P_CONTINU) Then n = 5 Else n = UBound(aPalette(P_COULEURS)) + 1
+	ReDim aBornes(n)
+	ReDim aCouleurs(n - 1)
+	dPas = PasArrondi(dMax - dMin)
+	For k = 0 To n
+		aBornes(k) = Int((dMin + (dMax - dMin) * k / n) / dPas + 0.5) * dPas
+	Next k
+	aBornes(0) = Int(dMin / dPas) * dPas
+	aBornes(n) = -Int(-dMax / dPas) * dPas
+	For k = 1 To n
+		If aBornes(k) <= aBornes(k - 1) Then aBornes(k) = aBornes(k - 1) + dPas
+	Next k
+	For k = 0 To n - 1
+		If aPalette(P_CONTINU) Then
+			aCouleurs(k) = CouleurDegrade(aPalette(P_COULEURS), k / (n - 1))
+		Else
+			aCouleurs(k) = aPalette(P_COULEURS)(k)
+		End If
+	Next k
+End Sub
+
+' Pas d'arrondi des bornes : une puissance de 10, environ 1/100 de l'étendue
+Function PasArrondi(ByVal dEtendue As Double) As Double
+	If dEtendue <= 0 Then
+		PasArrondi = 1
+	Else
+		PasArrondi = 10 ^ (Int(Log(dEtendue) / Log(10)) - 2)
+	End If
+End Function
+
+' ---------------------------------------------------------------------------
 ' Légende : une case par classe (5 nuances pour un dégradé continu), avec ses
 ' bornes si demandé, et « Sans donnée » ; à droite des zones, dans le même
 ' conteneur (groupe de la carte insérée, ou page de dessin). Toutes ses formes
@@ -732,6 +861,7 @@ Sub CreerLegende(vTexte As Variant, oConteneur As Object, aPalette As Variant, d
 	Dim x1 As Double, y1 As Double, x2 As Double, y2 As Double, x As Double, y As Double, xMax As Double
 	Dim dTaille As Double, dCase As Double, dPas As Double, k As Integer, n As Integer
 	Dim nCouleur As Long, dPos As Double, sTexte As String, bValeurs As Boolean
+	Dim bPerso As Boolean, aBornes As Variant, aCouleursPerso As Variant
 	On Error GoTo Erreur
 	If Not AccepteLegende(oConteneur) Then
 		Journal("Légende impossible pour cette carte")
@@ -757,10 +887,20 @@ Sub CreerLegende(vTexte As Variant, oConteneur As Object, aPalette As Variant, d
 			aOptions(O_POLICE_VALEURS), "B", xMax)
 		y = y + dPas
 	End If
+	bPerso = LireClasses(aOptions(O_CLASSES), aBornes, aCouleursPerso)
 	If bDonnees Then
-		If bContinu Then n = 5 Else n = UBound(aCouleurs) + 1
+		If bPerso Then
+			n = UBound(aCouleursPerso) + 1
+		ElseIf bContinu Then
+			n = 5
+		Else
+			n = UBound(aCouleurs) + 1
+		End If
 		For k = 0 To n - 1
-			If bContinu Then
+			If bPerso Then
+				nCouleur = aCouleursPerso(k)
+				sTexte = TexteValeur(vTexte, aBornes(k)) & " – " & TexteValeur(vTexte, aBornes(k + 1))
+			ElseIf bContinu Then
 				dPos = k / (n - 1)
 				nCouleur = CouleurDegrade(aCouleurs, dPos)
 				sTexte = TexteValeur(vTexte, dMin + dPos * (dMax - dMin))
@@ -1084,7 +1224,7 @@ End Function
 
 ' Noms des colonnes d'une plage pour le dialogue : lettre, en-tête (1re ligne)
 ' s'il s'agit d'un texte, et premières valeurs telles qu'affichées, ex.
-' « B — Valeur : 531, 523, 840 »
+' « B - Valeur : 531, 523, 840 »
 Function NomsColonnes(oPlage As Object) As Variant
 	Dim aNoms() As String, c As Long, n As Long, sEntete As String
 	Dim nLignes As Long, nDebut As Long, r As Long, sValeurs As String, nValeurs As Integer, sCellule As String
@@ -1098,7 +1238,7 @@ Function NomsColonnes(oPlage As Object) As Variant
 		If nDebut = 1 Then
 			sEntete = Trim(oPlage.getCellByPosition(c, 0).getString())
 			If Len(sEntete) > 30 Then sEntete = Left(sEntete, 29) & "…"
-			If sEntete <> "" Then aNoms(c) = aNoms(c) & " — " & sEntete
+			If sEntete <> "" Then aNoms(c) = aNoms(c) & " - " & sEntete
 		End If
 		' Premières valeurs non vides (parmi les NB_LIGNES_APERCU lignes suivantes)
 		sValeurs = ""
@@ -1152,7 +1292,7 @@ End Function
 ' aColonnes : noms des colonnes de la sélection.
 ' ---------------------------------------------------------------------------
 Function ChoisirFondDeCarte(oDocCalc As Object, bDuCache As Boolean, aPalette As Variant, _
-		bInserer As Boolean, aOptions As Variant, aColonnes As Variant) As String
+		bInserer As Boolean, aOptions As Variant, aColonnes As Variant, aData As Variant) As String
 	Dim sDossier As String, aCartes As Variant, bEnLigne As Boolean, aPalettes As Variant
 	Dim sEtat As String, iChoix As Integer, iPalette As Integer, nRes As Integer
 	Dim sPrefCarte As String, sPrefPalette As String
@@ -1177,6 +1317,7 @@ Function ChoisirFondDeCarte(oDocCalc As Object, bDuCache As Boolean, aPalette As
 		sEtat = Tr("state.offline_empty")
 	End If
 
+	aDonneesDialogue = aData
 	nRes = DialogueCartes(aCartes, aPalettes, sEtat, sPrefCarte, sPrefPalette, _
 		iChoix, iPalette, bInserer, aOptions, aColonnes, FenetreParente(oDocCalc), False)
 	Journal("Dialogue : résultat " & nRes & ", carte n° " & iChoix & ", palette n° " & iPalette _
@@ -1230,7 +1371,7 @@ Sub LirePreferences(sCarte As String, sPalette As String, bInserer As Boolean, a
 	If oPrefs.containsKey("palette") Then sPalette = oPrefs.get("palette")
 	If oPrefs.containsKey("inserer") Then bInserer = (oPrefs.get("inserer") <> "0")
 	For k = 0 To NB_OPTIONS - 1
-		If Mid(TYPES_OPTIONS, k + 1, 1) <> "c" And oPrefs.containsKey(NomOption(k)) Then
+		If OptionMemorisee(k) And oPrefs.containsKey(NomOption(k)) Then
 			aOptions(k) = OptionDeTexte(k, oPrefs.get(NomOption(k)))
 		End If
 	Next k
@@ -1247,7 +1388,7 @@ Sub EcrirePreferences(sCarte As String, sPalette As String, bInserer As Boolean,
 	sTexte = "# CalcMap : derniers choix" & Chr(10) & "carte=" & sCarte & Chr(10) _
 		& "palette=" & sPalette & Chr(10) & "inserer=" & IIf(bInserer, "1", "0") & Chr(10)
 	For k = 0 To NB_OPTIONS - 1
-		If Mid(TYPES_OPTIONS, k + 1, 1) <> "c" Then sTexte = sTexte & NomOption(k) & "=" & TexteDOption(k, aOptions(k)) & Chr(10)
+		If OptionMemorisee(k) Then sTexte = sTexte & NomOption(k) & "=" & TexteDOption(k, aOptions(k)) & Chr(10)
 	Next k
 	EcrireTexte(sDossier & NOM_PREFERENCES, sTexte)
 	Exit Sub
@@ -1656,7 +1797,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	Dim oModele As Object, oListe As Object, oListePal As Object
 	Dim oEcouteurListe As Object, oEcouteurPal As Object, oEcouteurBouton As Object, oEcouteurCases As Object
 	Dim aLibelles() As String, aNomsPal() As String, i As Long, iDefaut As Integer, nFin As Long
-	Dim iPalDefaut As Integer, aPolices As Variant, sCase As Variant
+	Dim iPalDefaut As Integer, aPolices As Variant, sCase As Variant, oEcouteurClasses As Object
 	On Error GoTo Erreur
 	DialogueCartes = 0
 	iChoix = -1
@@ -1670,7 +1811,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	For i = 0 To nFin
 		aLibelles(i) = aCartes(i)(C_TITRE)
 		If Not aCartes(i)(C_LOCALE) Then
-			aLibelles(i) = aLibelles(i) & "  — " & Tr("dlg.to_download", TailleLisible(aCartes(i)(C_TAILLE)))
+			aLibelles(i) = aLibelles(i) & "  - " & Tr("dlg.to_download", TailleLisible(aCartes(i)(C_TAILLE)))
 		End If
 		If sPrefCarte <> "" And (aCartes(i)(C_ID) = sPrefCarte Or aCartes(i)(C_FICHIER) = sPrefCarte) Then
 			iDefaut = i
@@ -1701,6 +1842,11 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	For i = 0 To NB_NUANCES_APERCU - 1
 		AjouterControle(oModele, "FixedText", "nuance" & i, 122, 81, 10, 14, Array("Border"), Array(2))
 	Next i
+	' Classes : linéaires (palette) ou personnalisées (éditeur)
+	AjouterControle(oModele, "FixedText", "lblClasses", 250, 70, 74, 10, Array("Label"), Array(""))
+	AjouterControle(oModele, "Button", "btnClasses", 250, 81, 74, 14, _
+		Array("Label", "PushButtonType", "HelpText"), Array(Tr("dlg.classes"), 0, Tr("dlg.classes_help")))
+	sClassesDialogue = aOptions(O_CLASSES)
 	' Colonnes de la sélection : code, valeur, libellé
 	AjouterListeColonne(oModele, "Code", 6, Tr("dlg.col_code"), aColonnes, aOptions(O_COL_CODE))
 	AjouterListeColonne(oModele, "Valeur", 114, Tr("dlg.col_value"), aColonnes, aOptions(O_COL_VALEUR))
@@ -1737,6 +1883,8 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oListePal.addItemListener(oEcouteurPal)
 	oEcouteurBouton = CreateUnoListener("AutreFichier_", "com.sun.star.awt.XActionListener")
 	oDialogue.getControl("btnAutre").addActionListener(oEcouteurBouton)
+	oEcouteurClasses = CreateUnoListener("BoutonClasses_", "com.sun.star.awt.XActionListener")
+	oDialogue.getControl("btnClasses").addActionListener(oEcouteurClasses)
 	oEcouteurCases = CreateUnoListener("CasesTexte_", "com.sun.star.awt.XItemListener")
 	For Each sCase In Array("chkValeurs", "chkLibelles", "chkLegende")
 		oDialogue.getControl(sCase).addItemListener(oEcouteurCases)
@@ -1746,6 +1894,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oDialogue.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), oParent)
 	If nFin >= 0 Then AfficherDescription(iDefaut)
 	AfficherPalette(iPalDefaut)
+	AfficherEtatClasses()
 	If bConfig Then
 		oDialogue.getControl("btnAutre").setVisible(False)
 		oDialogue.getControl("lblDescription").getModel().Label = Tr("dlg.config_hint")
@@ -1762,6 +1911,8 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	LireLigneTexte("Libelles", aOptions, O_LIBELLES, O_TAILLE_LIBELLES, O_POLICE_LIBELLES, O_STYLE_LIBELLES)
 	aOptions(O_LEGENDE) = (oDialogue.getControl("chkLegende").getState() = 1)
 	aOptions(O_LEGENDE_VALEURS) = (oDialogue.getControl("chkLegendeValeurs").getState() = 1)
+	aOptions(O_CLASSES) = sClassesDialogue
+	oDialogue.getControl("btnClasses").removeActionListener(oEcouteurClasses)
 	For Each sCase In Array("chkValeurs", "chkLibelles", "chkLegende")
 		oDialogue.getControl(sCase).removeItemListener(oEcouteurCases)
 	Next sCase
@@ -1896,6 +2047,7 @@ Sub AjouterControle(oModele As Object, sType As String, sNom As String, nX As Lo
 		nLargeur As Long, nHauteur As Long, aNoms As Variant, aValeurs As Variant)
 	Dim oCtrl As Object, k As Integer
 	oCtrl = oModele.createInstance("com.sun.star.awt.UnoControl" & sType & "Model")
+	oCtrl.Name = sNom          ' lu par les écouteurs (non renseigné par insertByName)
 	oCtrl.PositionX = nX
 	oCtrl.PositionY = nY
 	oCtrl.Width = nLargeur
@@ -1912,8 +2064,8 @@ Sub AfficherDescription(ByVal i As Long)
 	If i < 0 Or i > UBound(aCartesDialogue) Then Exit Sub
 	aCarte = aCartesDialogue(i)
 	s = aCarte(C_DESCRIPTION) & Chr(10) & aCarte(C_FICHIER)
-	If aCarte(C_TAILLE) > 0 Then s = s & " — " & TailleLisible(aCarte(C_TAILLE))
-	s = s & " — " & IIf(aCarte(C_LOCALE), Tr("dlg.downloaded"), Tr("dlg.will_download"))
+	If aCarte(C_TAILLE) > 0 Then s = s & " - " & TailleLisible(aCarte(C_TAILLE))
+	s = s & " - " & IIf(aCarte(C_LOCALE), Tr("dlg.downloaded"), Tr("dlg.will_download"))
 	oDialogue.getControl("lblDescription").getModel().Label = s
 End Sub
 
@@ -1961,7 +2113,379 @@ End Sub
 Sub ListePalettes_itemStateChanged(oEvenement As Object)
 	On Error Resume Next
 	AfficherPalette(oEvenement.Selected)
+	' Une autre palette remplace les classes personnalisées
+	If sClassesDialogue <> "" Then
+		sClassesDialogue = ""
+		AfficherEtatClasses()
+	End If
 End Sub
+
+Sub AfficherEtatClasses()
+	Dim aB As Variant, aC As Variant
+	On Error Resume Next
+	If LireClasses(sClassesDialogue, aB, aC) Then
+		oDialogue.getControl("lblClasses").getModel().Label = Tr("dlg.classes_custom", UBound(aC) + 1)
+	Else
+		oDialogue.getControl("lblClasses").getModel().Label = Tr("dlg.classes_linear")
+	End If
+End Sub
+
+' Bouton « Classes… » : éditeur de classes sur les données de la colonne
+' des valeurs choisie
+Sub BoutonClasses_actionPerformed(oEvenement As Object)
+	Dim iPal As Integer, s As String
+	On Error GoTo Erreur
+	iPal = oDialogue.getControl("lstPalette").getSelectedItemPos()
+	If iPal < 0 Then iPal = 0
+	s = EditeurClasses(sClassesDialogue, aPalettesDialogue(iPal), aDonneesDialogue, _
+		oDialogue.getControl("lstCode").getSelectedItemPos(), _
+		oDialogue.getControl("lstValeur").getSelectedItemPos(), _
+		oDialogue.getControl("lstLibelle").getSelectedItemPos(), oDialogue.getPeer())
+	If s <> Chr(0) Then
+		sClassesDialogue = s
+		AfficherEtatClasses()
+	End If
+	Exit Sub
+Erreur:
+	Journal("ERREUR à l'ouverture de l'éditeur de classes " & Err & " (ligne " & Erl & ") : " & Error$)
+End Sub
+
+Sub BoutonClasses_disposing(oEvenement As Object)
+End Sub
+
+' ---------------------------------------------------------------------------
+' Éditeur de classes : une ligne par classe (couleur, bornes, nombre de
+' zones, diviser, supprimer) et la liste triée des valeurs. Les classes
+' restent jointives : la borne « À » d'une classe est le « De » de la
+' suivante. Renvoie le texte des classes ("" : répartition linéaire), ou
+' Chr(0) si annulé.
+' ---------------------------------------------------------------------------
+Function EditeurClasses(sClasses As String, aPalette As Variant, aData As Variant, iCode As Integer, _
+		iVal As Integer, iLib As Integer, oParent As Object) As String
+	Dim sLineaire As String, nRes As Integer
+	On Error GoTo Erreur
+	EditeurClasses = Chr(0)
+	sLineaire = ConstruireEditeur(sClasses, aPalette, aData, iCode, iVal, iLib, oParent)
+	nRes = oEditeur.execute()
+	If nRes = 1 Then
+		EditeurClasses = TexteClasses(aBornesEd, aCouleursEd, nClassesEd)
+		' Identiques à la répartition linéaire : pas de classes personnalisées
+		If EditeurClasses = sLineaire Then EditeurClasses = ""
+		Journal("Classes : " & IIf(EditeurClasses = "", "linéaires", EditeurClasses))
+	End If
+	oEditeur.dispose()
+	oEditeur = Nothing
+	Exit Function
+Erreur:
+	Journal("ERREUR dans l'éditeur de classes " & Err & " (ligne " & Erl & ") : " & Error$)
+	On Error Resume Next
+	If Not IsNull(oEditeur) Then oEditeur.dispose()
+	oEditeur = Nothing
+	EditeurClasses = Chr(0)
+End Function
+
+' Construit l'éditeur (oEditeur) et son état ; renvoie le texte des classes
+' de la répartition linéaire
+Function ConstruireEditeur(sClasses As String, aPalette As Variant, aData As Variant, iCode As Integer, _
+		iVal As Integer, iLib As Integer, oParent As Object) As String
+	Dim oModele As Object, i As Integer, nY As Long, dMin As Double, dMax As Double
+	Dim oEcouteurBoutons As Object, oEcouteurTextes As Object, aTextesValeurs As Variant
+	Dim aBL As Variant, aCL As Variant, nL As Integer
+	aPaletteEd = aPalette
+	ValeursTriees(aData, iCode, iVal, iLib, aValeursEd, aTextesValeurs)
+	If UBound(aValeursEd) >= 0 Then
+		dMin = aValeursEd(0)
+		dMax = aValeursEd(UBound(aValeursEd))
+	End If
+	ClassesLineaires(aPalette, dMin, dMax, aBL, aCL, nL)
+	ConstruireEditeur = TexteClasses(aBL, aCL, nL)
+	If LireClasses(sClasses, aBornesEd, aCouleursEd) Then
+		nClassesEd = UBound(aCouleursEd) + 1
+	Else
+		aBornesEd = aBL
+		aCouleursEd = aCL
+		nClassesEd = nL
+	End If
+
+	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
+	oModele.Title = Tr("ed.title")
+	oModele.Width = 330
+	oModele.Height = 262
+	AjouterControle(oModele, "FixedText", "lblInfo", 6, 6, 318, 10, Array("Label"), _
+		Array(Tr("ed.info", NombreEd(dMin), NombreEd(dMax), UBound(aValeursEd) + 1)))
+	AjouterControle(oModele, "FixedText", "lblCol1", 6, 20, 26, 10, Array("Label"), Array(Tr("ed.color")))
+	AjouterControle(oModele, "FixedText", "lblCol2", 34, 20, 56, 10, Array("Label"), Array(Tr("ed.from")))
+	AjouterControle(oModele, "FixedText", "lblCol3", 94, 20, 56, 10, Array("Label"), Array(Tr("ed.to")))
+	AjouterControle(oModele, "FixedText", "lblCol4", 152, 20, 30, 10, Array("Label", "Align"), Array(Tr("ed.zones"), 2))
+	For i = 0 To NB_CLASSES_MAX - 1
+		nY = 32 + i * 16
+		AjouterControle(oModele, "Button", "btnCouleur" & i, 6, nY, 26, 14, _
+			Array("PushButtonType", "HelpText"), Array(0, Tr("ed.color_help")))
+		AjouterControle(oModele, "Edit", "txtDe" & i, 34, nY, 56, 14, _
+			Array("ReadOnly", "Align"), Array(i > 0, 2))
+		AjouterControle(oModele, "Edit", "txtA" & i, 94, nY, 56, 14, Array("Align"), Array(2))
+		AjouterControle(oModele, "FixedText", "lblN" & i, 152, nY + 2, 30, 10, Array("Align"), Array(2))
+		AjouterControle(oModele, "Button", "btnDiviser" & i, 186, nY, 14, 14, _
+			Array("Label", "PushButtonType", "HelpText"), Array("+", 0, Tr("ed.split_help")))
+		AjouterControle(oModele, "Button", "btnSupprimer" & i, 202, nY, 14, 14, _
+			Array("Label", "PushButtonType", "HelpText"), Array("x", 0, Tr("ed.delete_help")))
+	Next i
+	AjouterControle(oModele, "FixedText", "lblValeurs", 222, 20, 102, 10, Array("Label"), Array(Tr("ed.values")))
+	AjouterControle(oModele, "ListBox", "lstValeurs", 222, 32, 102, 158, _
+		Array("StringItemList", "ReadOnly"), Array(aTextesValeurs, True))
+	AjouterControle(oModele, "FixedText", "lblHors", 6, 194, 210, 10, Array("Label"), Array(""))
+	AjouterControle(oModele, "Button", "btnLineaire", 6, 208, 100, 14, _
+		Array("Label", "PushButtonType"), Array(Tr("ed.linear"), 0))
+	AjouterControle(oModele, "FixedText", "lblErreur", 6, 226, 318, 10, _
+		Array("Label", "TextColor"), Array("", RGB(192, 0, 0)))
+	AjouterControle(oModele, "Button", "btnOkEd", 218, 242, 50, 14, _
+		Array("Label", "PushButtonType", "DefaultButton"), Array(Tr("dlg.ok"), 0, True))
+	AjouterControle(oModele, "Button", "btnAnnulerEd", 274, 242, 50, 14, _
+		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
+
+	oEditeur = CreateUnoService("com.sun.star.awt.UnoControlDialog")
+	oEditeur.setModel(oModele)
+	oEcouteurBoutons = CreateUnoListener("EditeurBouton_", "com.sun.star.awt.XActionListener")
+	oEcouteurTextes = CreateUnoListener("EditeurTexte_", "com.sun.star.awt.XTextListener")
+	For i = 0 To NB_CLASSES_MAX - 1
+		oEditeur.getControl("btnCouleur" & i).addActionListener(oEcouteurBoutons)
+		oEditeur.getControl("btnDiviser" & i).addActionListener(oEcouteurBoutons)
+		oEditeur.getControl("btnSupprimer" & i).addActionListener(oEcouteurBoutons)
+		oEditeur.getControl("txtA" & i).addTextListener(oEcouteurTextes)
+	Next i
+	oEditeur.getControl("txtDe0").addTextListener(oEcouteurTextes)
+	oEditeur.getControl("btnLineaire").addActionListener(oEcouteurBoutons)
+	oEditeur.getControl("btnOkEd").addActionListener(oEcouteurBoutons)
+	oEditeur.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), oParent)
+	AfficherClassesEd()
+End Function
+
+' Valeurs numériques de la colonne iVal, triées, et leurs textes pour la
+' liste : « 389 - Ain (01) »
+Sub ValeursTriees(aData As Variant, iCode As Integer, iVal As Integer, iLib As Integer, _
+		aValeurs As Variant, aTextes As Variant)
+	Dim i As Long, n As Long, d As Double, sCode As String, sLib As String
+	Dim aV() As Double, aT() As String
+	On Error GoTo Fin
+	For i = 0 To UBound(aData)
+		If UBound(aData(i)) >= iVal And UBound(aData(i)) >= iCode Then
+			sCode = NormaliserCode(aData(i)(iCode))
+			If sCode <> "" And Not EstVide(aData(i)(iVal)) Then
+				If EnNombre(aData(i)(iVal), d) Then
+					sLib = ""
+					If iLib >= 0 And UBound(aData(i)) >= iLib Then
+						If Not EstVide(aData(i)(iLib)) Then sLib = Trim(CStr(aData(i)(iLib)))
+					End If
+					ReDim Preserve aV(n) As Double
+					ReDim Preserve aT(n) As String
+					aV(n) = d
+					aT(n) = IIf(sLib = "", sCode, sLib & " (" & sCode & ")")
+					n = n + 1
+				End If
+			End If
+		End If
+	Next i
+Fin:
+	TrierValeurs(aV, aT)
+	For i = 0 To n - 1
+		aT(i) = NombreEd(aV(i)) & " - " & aT(i)
+	Next i
+	aValeurs = aV
+	aTextes = aT
+End Sub
+
+' Tri (Shell) de valeurs, textes associés déplacés avec elles
+Sub TrierValeurs(aV As Variant, aT As Variant)
+	Dim nEcart As Long, i As Long, j As Long, d As Double, s As String
+	nEcart = (UBound(aV) + 1) \ 2
+	Do While nEcart > 0
+		For i = nEcart To UBound(aV)
+			d = aV(i) : s = aT(i)
+			j = i
+			Do While j >= nEcart
+				If aV(j - nEcart) <= d Then Exit Do
+				aV(j) = aV(j - nEcart) : aT(j) = aT(j - nEcart)
+				j = j - nEcart
+			Loop
+			aV(j) = d : aT(j) = s
+		Next i
+		nEcart = nEcart \ 2
+	Loop
+End Sub
+
+' Nombre affiché dans l'éditeur (séparateur décimal de la langue)
+Function NombreEd(ByVal d As Double) As String
+	' Arrondi au millionième (sans Round, absent de StarBasic hors mode VBA)
+	NombreEd = CStr(Int(d * 1000000 + 0.5) / 1000000)
+End Function
+
+' Met à jour toutes les lignes de l'éditeur
+Sub AfficherClassesEd()
+	Dim i As Integer, bVisible As Boolean
+	bMajEd = True
+	For i = 0 To NB_CLASSES_MAX - 1
+		bVisible = (i < nClassesEd)
+		oEditeur.getControl("btnCouleur" & i).setVisible(bVisible)
+		oEditeur.getControl("txtDe" & i).setVisible(bVisible)
+		oEditeur.getControl("txtA" & i).setVisible(bVisible)
+		oEditeur.getControl("lblN" & i).setVisible(bVisible)
+		oEditeur.getControl("btnDiviser" & i).setVisible(bVisible)
+		oEditeur.getControl("btnSupprimer" & i).setVisible(bVisible)
+		If bVisible Then
+			oEditeur.getControl("btnCouleur" & i).getModel().BackgroundColor = aCouleursEd(i)
+			oEditeur.getControl("txtDe" & i).getModel().Text = NombreEd(aBornesEd(i))
+			oEditeur.getControl("txtA" & i).getModel().Text = NombreEd(aBornesEd(i + 1))
+			oEditeur.getControl("btnDiviser" & i).getModel().Enabled = (nClassesEd < NB_CLASSES_MAX)
+			oEditeur.getControl("btnSupprimer" & i).getModel().Enabled = (nClassesEd > 1)
+		End If
+	Next i
+	oEditeur.getControl("lblErreur").getModel().Label = ""
+	bMajEd = False
+	CompterClassesEd()
+End Sub
+
+' Nombre de zones par classe, et hors des classes
+Sub CompterClassesEd()
+	Dim aN() As Long, i As Long, k As Integer, nHors As Long
+	ReDim aN(nClassesEd - 1) As Long
+	For i = 0 To UBound(aValeursEd)
+		k = ClasseDe(aBornesEd, aValeursEd(i))
+		If k < 0 Then nHors = nHors + 1 Else aN(k) = aN(k) + 1
+	Next i
+	For k = 0 To nClassesEd - 1
+		oEditeur.getControl("lblN" & k).getModel().Label = CStr(aN(k))
+	Next k
+	oEditeur.getControl("lblHors").getModel().Label = IIf(nHors > 0, Tr("ed.outside", nHors), "")
+End Sub
+
+' Saisie d'une borne : « À » de la ligne i (= « De » de la suivante), ou
+' « De » de la 1re ligne
+Sub EditeurTexte_textChanged(oEvenement As Object)
+	Dim sNom As String, i As Integer, d As Double
+	On Error Resume Next
+	If bMajEd Then Exit Sub
+	sNom = oEvenement.Source.getModel().Name
+	If Not EnNombre(oEvenement.Source.getText(), d) Then
+		oEditeur.getControl("lblErreur").getModel().Label = Tr("ed.not_number")
+		Exit Sub
+	End If
+	oEditeur.getControl("lblErreur").getModel().Label = ""
+	If sNom = "txtDe0" Then
+		aBornesEd(0) = d
+	Else
+		i = CInt(Mid(sNom, 5))
+		aBornesEd(i + 1) = d
+		If i + 1 < nClassesEd Then
+			bMajEd = True
+			oEditeur.getControl("txtDe" & (i + 1)).getModel().Text = NombreEd(d)
+			bMajEd = False
+		End If
+	End If
+	CompterClassesEd()
+End Sub
+
+Sub EditeurTexte_disposing(oEvenement As Object)
+End Sub
+
+Sub EditeurBouton_actionPerformed(oEvenement As Object)
+	Dim sNom As String, i As Integer, k As Integer, nCouleur As Long, aPal As Variant
+	Dim aB As Variant, aC As Variant, n As Integer
+	On Error GoTo Erreur
+	sNom = oEvenement.Source.getModel().Name
+	If sNom = "btnOkEd" Then
+		' Bornes croissantes exigées
+		For k = 1 To nClassesEd
+			If aBornesEd(k) <= aBornesEd(k - 1) Then
+				oEditeur.getControl("lblErreur").getModel().Label = Tr("ed.not_increasing", k)
+				Exit Sub
+			End If
+		Next k
+		oEditeur.endDialog(1)
+	ElseIf sNom = "btnLineaire" Then
+		ClassesLineaires(aPaletteEd, MinEd(), MaxEd(), aB, aC, n)
+		aBornesEd = aB
+		aCouleursEd = aC
+		nClassesEd = n
+		AfficherClassesEd()
+	ElseIf Left(sNom, 10) = "btnCouleur" Then
+		i = CInt(Mid(sNom, 11))
+		nCouleur = ChoisirCouleur(aCouleursEd(i), oEditeur.getPeer())
+		If nCouleur >= 0 Then
+			aCouleursEd(i) = nCouleur
+			oEditeur.getControl(sNom).getModel().BackgroundColor = nCouleur
+		End If
+	ElseIf Left(sNom, 10) = "btnDiviser" Then
+		' Coupe la classe i en deux au milieu ; la nouvelle garde sa couleur
+		i = CInt(Mid(sNom, 11))
+		If nClassesEd >= NB_CLASSES_MAX Then Exit Sub
+		ReDim Preserve aBornesEd(nClassesEd + 1)
+		ReDim Preserve aCouleursEd(nClassesEd)
+		For k = nClassesEd + 1 To i + 2 Step -1
+			aBornesEd(k) = aBornesEd(k - 1)
+		Next k
+		aBornesEd(i + 1) = (aBornesEd(i) + aBornesEd(i + 2)) / 2
+		For k = nClassesEd To i + 1 Step -1
+			aCouleursEd(k) = aCouleursEd(k - 1)
+		Next k
+		nClassesEd = nClassesEd + 1
+		AfficherClassesEd()
+	ElseIf Left(sNom, 12) = "btnSupprimer" Then
+		' Supprime la classe i : la suivante (ou la précédente pour la
+		' dernière) reprend son intervalle
+		i = CInt(Mid(sNom, 13))
+		If nClassesEd <= 1 Then Exit Sub
+		If i < nClassesEd - 1 Then
+			For k = i + 1 To nClassesEd - 1
+				aBornesEd(k) = aBornesEd(k + 1)
+			Next k
+		Else
+			aBornesEd(nClassesEd - 1) = aBornesEd(nClassesEd)
+		End If
+		For k = i To nClassesEd - 2
+			aCouleursEd(k) = aCouleursEd(k + 1)
+		Next k
+		nClassesEd = nClassesEd - 1
+		ReDim Preserve aBornesEd(nClassesEd)
+		ReDim Preserve aCouleursEd(nClassesEd - 1)
+		AfficherClassesEd()
+	End If
+	Exit Sub
+Erreur:
+	Journal("ERREUR dans l'éditeur de classes " & Err & " (ligne " & Erl & ") : " & Error$)
+End Sub
+
+Sub EditeurBouton_disposing(oEvenement As Object)
+End Sub
+
+Function MinEd() As Double
+	If UBound(aValeursEd) >= 0 Then MinEd = aValeursEd(0)
+End Function
+
+Function MaxEd() As Double
+	If UBound(aValeursEd) >= 0 Then MaxEd = aValeursEd(UBound(aValeursEd))
+End Function
+
+' Sélecteur de couleur de LibreOffice ; -1 si annulé
+Function ChoisirCouleur(nCouleur As Long, oParent As Object) As Long
+	Dim oSelecteur As Object, aRes As Variant, k As Integer
+	Dim aProps(0) As New com.sun.star.beans.PropertyValue
+	On Error GoTo Erreur
+	ChoisirCouleur = -1
+	oSelecteur = CreateUnoServiceWithArguments("com.sun.star.cui.ColorPicker", Array(oParent))
+	aProps(0).Name = "Color"
+	aProps(0).Value = nCouleur
+	oSelecteur.setPropertyValues(aProps())
+	If oSelecteur.execute() = 1 Then
+		aRes = oSelecteur.getPropertyValues()
+		For k = 0 To UBound(aRes)
+			If aRes(k).Name = "Color" Then ChoisirCouleur = aRes(k).Value
+		Next k
+	End If
+	Exit Function
+Erreur:
+	Journal("ERREUR du sélecteur de couleur : " & Error$)
+	ChoisirCouleur = -1
+End Function
 
 Sub ListePalettes_disposing(oEvenement As Object)
 End Sub
@@ -2477,7 +3001,7 @@ Sub ConfigurerCarte()
 	Dim bPrefInserer As Boolean, aPrefOptions As Variant, aColonnes As Variant, oPlage As Object
 	On Error GoTo Erreur
 	OuvrirJournal()
-	Journal("CalcMap " & VERSION & " — configuration d'une carte")
+	Journal("CalcMap " & VERSION & " - configuration d'une carte")
 	ChargerTextes()
 	oDocCalc = ThisComponent
 	sNom = LienDeSelection(oDocCalc, oDocCalc.getCurrentController().getSelection())
@@ -2491,6 +3015,7 @@ Sub ConfigurerCarte()
 	oPlage = PlageDeDonnees(oDocCalc.NamedRanges.getByName(sNom).getReferredCells())
 	If IsNull(oPlage) Then GoTo Fin
 	aColonnes = NomsColonnes(oPlage)
+	aDonneesDialogue = oPlage.getDataArray()
 	aPalettes = ChargerPalettes()
 	aCartes = Array(NouvelleCarte("", NomFichier(aChamps(3)), "", aChamps(3), NomFichier(aChamps(3)), _
 		0, "", True))
