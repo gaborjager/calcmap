@@ -67,7 +67,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.7.2"
+Const VERSION = "0.7.3"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -165,6 +165,7 @@ Private dMaxBarre As Double
 Private iBorneEd As Integer         ' borne sélectionnée (-1 : aucune)
 Private bGlisseEd As Boolean        ' séparateur en cours de déplacement
 Private iCouleurEd As Integer       ' classe cliquée (choix de sa couleur au relâchement)
+Private nAffichesEd As Integer      ' classes affichées sur la barre (-1 : à recalculer)
 
 ' Barre de couleurs de l'éditeur de classes (unités du dialogue)
 Const BARRE_X = 10
@@ -2244,6 +2245,7 @@ Function ConstruireEditeur(sClasses As String, aPalette As Variant, aData As Var
 	iBorneEd = -1
 	bGlisseEd = False
 	iCouleurEd = -1
+	nAffichesEd = -1
 
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = Tr("ed.title")
@@ -2414,8 +2416,8 @@ Sub PointeursBarre()
 End Sub
 
 ' Met à jour la barre : cases (couleur, nombre de zones), séparateurs,
-' valeurs des bornes, nombre de classes et borne sélectionnée (sauf son
-' champ si bGarderSaisie : saisie en cours)
+' valeurs des bornes, nombre de classes et borne sélectionnée. Avec
+' bGarderSaisie, les champs ne sont pas réécrits (le changement vient d'eux).
 Sub AfficherBarre(Optional bGarderSaisie As Variant)
 	Dim k As Integer, x1 As Long, x2 As Long, aN As Variant, oModele As Object, bVisible As Boolean
 	bMajEd = True
@@ -2423,7 +2425,7 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 	For k = 0 To NB_CLASSES_MAX - 1
 		oModele = oEditeur.getControl("seg" & k).getModel()
 		bVisible = (k < nClassesEd)
-		oEditeur.getControl("seg" & k).setVisible(bVisible)
+		If nAffichesEd <> nClassesEd Then oEditeur.getControl("seg" & k).setVisible(bVisible)
 		If bVisible Then
 			x1 = XDeValeur(aBornesEd(k))
 			x2 = XDeValeur(aBornesEd(k + 1))
@@ -2434,7 +2436,7 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 			oModele.Label = IIf(x2 - x1 >= 8, CStr(aN(k)), "")
 		End If
 		If k > 0 Then
-			oEditeur.getControl("pgn" & k).setVisible(k < nClassesEd)
+			If nAffichesEd <> nClassesEd Then oEditeur.getControl("pgn" & k).setVisible(k < nClassesEd)
 			If k < nClassesEd Then
 				oEditeur.getControl("pgn" & k).getModel().PositionX = XDeValeur(aBornesEd(k)) - 2
 				oEditeur.getControl("pgn" & k).getModel().BackgroundColor = _
@@ -2444,7 +2446,7 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 	Next k
 	For k = 0 To NB_CLASSES_MAX
 		oModele = oEditeur.getControl("lblBorne" & k).getModel()
-		oEditeur.getControl("lblBorne" & k).setVisible(k <= nClassesEd)
+		If nAffichesEd <> nClassesEd Then oEditeur.getControl("lblBorne" & k).setVisible(k <= nClassesEd)
 		If k <= nClassesEd Then
 			x1 = XDeValeur(aBornesEd(k)) - 13
 			If x1 < 0 Then x1 = 0
@@ -2453,7 +2455,10 @@ Sub AfficherBarre(Optional bGarderSaisie As Variant)
 			oModele.TextColor = IIf(k = iBorneEd, RGB(220, 0, 0), RGB(0, 0, 0))
 		End If
 	Next k
-	If oEditeur.getControl("numClasses").getValue() <> nClassesEd Then
+	nAffichesEd = nClassesEd
+	' Comparé au texte : la valeur du champ peut être en retard sur sa saisie
+	If Not IsMissing(bGarderSaisie) Then
+	ElseIf Val(oEditeur.getControl("numClasses").getText()) <> nClassesEd Then
 		oEditeur.getControl("numClasses").setValue(nClassesEd)
 	End If
 	oEditeur.getControl("txtBorne").getModel().Enabled = (iBorneEd > 0)
@@ -2555,11 +2560,14 @@ Sub EditeurTexte_textChanged(oEvenement As Object)
 	sNom = oEvenement.Source.getModel().Name
 	oEditeur.getControl("lblErreur").getModel().Label = ""
 	If sNom = "numClasses" Then
-		n = CInt(oEditeur.getControl("numClasses").getValue())
+		' Texte et non valeur : pendant la saisie ou au clic sur une flèche, la
+		' valeur n'est pas toujours encore à jour
+		n = CInt(Val(oEditeur.getControl("numClasses").getText()))
 		If n < 2 Or n > NB_CLASSES_MAX Or n = nClassesEd Then Exit Sub
 		ClassesLineaires(aPaletteEd, MinEd(), MaxEd(), n, aBornesEd, aCouleursEd, nClassesEd)
 		iBorneEd = -1
-		AfficherBarre()
+		AfficherBarre(True)
+		oEditeur.getControl("txtBorne").setText("")
 	ElseIf sNom = "txtBorne" And iBorneEd > 0 Then
 		k = iBorneEd
 		If Not EnNombre(oEvenement.Source.getText(), d) Then
