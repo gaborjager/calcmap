@@ -87,7 +87,7 @@ Sub TestTextes()
 	For i = 0 To oG.getCount() - 1
 		If oG.getByIndex(i).Name = "88" Then oG.getByIndex(i).setString("ancien")
 	Next i
-	RecalculerLien(oCalc, sLien)
+	RecalculerLien(oCalc, sLien, True)
 	Journal("TEST ancien texte dans la zone : " & TextesT(oG, "88"))
 	' Valeurs et libellés désactivés : textes retirés
 	aChamps = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLien), "|")
@@ -264,6 +264,95 @@ Sub TestDialogue()
 			"", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
 		Journal("TEST dialogue " & sMode & " : relu a l'identique=" & (TexteOptions(aOpt) = sAvant) & " ; " & TexteOptions(aOpt))
 	Next sMode
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- mise à jour partielle
+' État de la carte : couleur, texte alternatif et textes (triés) de chaque zone
+Function EtatCarteT(oG As Object) As String
+	Dim i As Long, o As Object, aT() As String, n As Long
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		ReDim Preserve aT(n) As String
+		If EstLegende(o.Name) Then
+			aT(n) = "L " & o.getShapeType() & " " & o.Position.X & "," & o.Position.Y & IIf(o.getShapeType() = "com.sun.star.drawing.TextShape", " '" & o.getString() & "'", " " & Hex(o.FillColor))
+		ElseIf Left(o.Name, Len(PREFIXE_TEXTE)) = PREFIXE_TEXTE Then
+			aT(n) = "T " & o.Name & " '" & Replace(o.getString(), Chr(10), "/") & "' " & Hex(o.CharColor) & " " & o.Position.X & "," & o.Position.Y
+		Else
+			aT(n) = "Z " & o.Name & " " & Hex(o.FillColor) & " [" & o.Description & "]"
+		End If
+		n = n + 1
+	Next i
+	TrierTextes(aT)
+	EtatCarteT = Join(aT, Chr(10))
+End Function
+
+' Modifie des cellules (adresse=valeur ; vide : cellule effacée) puis compare
+' la mise à jour (partielle ou non) à un recalcul complet
+Sub CasPartielT(sCas As String, aModifs As Variant, sLien As String, oG As Object)
+	Dim oCalc As Object, oFeuille As Object, k As Integer, a As Variant, t As Long, sApres As String, sComplet As String
+	Dim nZones As Long
+	oCalc = DocCalcT()
+	oFeuille = oCalc.getSheets().getByIndex(0)
+	t = GetSystemTicks()
+	For k = 0 To UBound(aModifs)
+		a = Split(aModifs(k), "=")
+		If a(1) = "" Then
+			oFeuille.getCellRangeByName(a(0)).setString("")
+		ElseIf IsNumeric(a(1)) Then
+			oFeuille.getCellRangeByName(a(0)).setValue(CDbl(a(1)))
+		Else
+			oFeuille.getCellRangeByName(a(0)).setString(a(1))
+		End If
+	Next k
+	t = GetSystemTicks() - t
+	nZones = nDerniereMaj
+	sApres = EtatCarteT(oG)
+	RecalculerLien(oCalc, sLien, True)
+	sComplet = EtatCarteT(oG)
+	Journal("TEST " & sCas & " : " & IIf(nZones < 0, "carte entiere", nZones & " zone(s)") & " en " & t & " ms ; identique au recalcul complet : " & (sApres = sComplet))
+	If sApres <> sComplet Then Journal("TEST   difference : " & DifferenceT(sApres, sComplet))
+End Sub
+
+Function DifferenceT(a As String, b As String) As String
+	Dim aa As Variant, bb As Variant, i As Long
+	aa = Split(a, Chr(10)) : bb = Split(b, Chr(10))
+	For i = 0 To UBound(aa)
+		If i > UBound(bb) Then DifferenceT = "en trop : " & aa(i) : Exit Function
+		If aa(i) <> bb(i) Then DifferenceT = aa(i) & "  <>  " & bb(i) : Exit Function
+	Next i
+	DifferenceT = "nombre de formes " & (UBound(aa) + 1) & " / " & (UBound(bb) + 1)
+End Function
+
+Sub TestPartiel()
+	Dim oCalc As Object, oFeuille As Object, aOpt As Variant, sLien As String, oG As Object, i As Long, aModifs() As String
+	OuvrirJournal()
+	On Error GoTo ErrT
+	ChargerTextes()
+	oCalc = DocCalcT()
+	oFeuille = oCalc.getSheets().getByIndex(0)
+	aOpt = OptionsParDefaut()
+	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True : aOpt(O_LEGENDE) = True
+	sLien = InsererCarteT(aOpt, "jaune-rouge")
+	oG = oFeuille.getDrawPage().getByIndex(0)
+	' Lignes : A2 = 01 (Ain, 389) ... ; 88 en ligne 90 ; min 10 (Lozère, 48), max 988 (Gard, 30)
+	CasPartielT("valeur changee dans les bornes (Ain 389 -> 700)", Array("B2=700"), sLien, oG)
+	CasPartielT("meme valeur ressaisie", Array("B2=700"), sLien, oG)
+	CasPartielT("libelle change (Ain -> AIN)", Array("C2=AIN"), sLien, oG)
+	CasPartielT("code change (01 -> 02, doublon)", Array("A2=02"), sLien, oG)
+	CasPartielT("code retabli", Array("A2=01"), sLien, oG)
+	CasPartielT("nouveau maximum (Ain -> 2000)", Array("B2=2000"), sLien, oG)
+	CasPartielT("valeur effacee (Ain)", Array("B2="), sLien, oG)
+	CasPartielT("valeur remise (Ain 389)", Array("B2=389"), sLien, oG)
+	ReDim aModifs(24) As String
+	For i = 0 To 24
+		aModifs(i) = "B" & (i + 3) & "=" & (500 + i)
+	Next i
+	CasPartielT("25 valeurs modifiees une a une", aModifs, sLien, oG)
 	FermerJournal()
 	Exit Sub
 ErrT:

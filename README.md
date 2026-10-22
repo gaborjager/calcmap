@@ -107,8 +107,17 @@ carte.
 
 Une carte insérée dans la feuille reste **liée à ses données** : dès qu'une
 valeur change (saisie, collage, résultat de formule recalculé), la carte est
-recoloriée, avec la même palette (et les mêmes valeurs affichées ou non). Pour une
-carte insérée en image, l'image est régénérée.
+mise à jour, avec les mêmes réglages.
+
+- En général, **seules les zones modifiées** sont refaites (couleur, texte
+  alternatif, valeur et libellé affichés) : 0,3 s environ pour un département,
+  contour compris.
+- **Toute la carte** est refaite quand la modification touche toute la carte :
+  nouveau minimum ou maximum (les classes linéaires bougent), zone qui gagne ou
+  perd sa valeur (ligne « Sans donnée » de la légende), en-tête de la colonne
+  des valeurs (titre de la légende), plus de 20 zones changées à la fois, ou
+  nouveaux réglages (*Configuration de la carte…*). Pour une carte insérée en
+  image, l'image est régénérée.
 
 - Le lien est enregistré dans le classeur : une plage nommée `CalcMap_1`
   (`_2`, … pour d'autres cartes) sur les deux colonnes sélectionnées, et une

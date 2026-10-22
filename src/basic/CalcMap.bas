@@ -68,7 +68,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.9.1"
+Const VERSION = "0.10.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -177,14 +177,16 @@ Const BARRE_X = 10
 Const BARRE_Y = 44
 Const BARRE_L = 300
 Const BARRE_H = 22
+Const NB_ZONES_PARTIELLE = 20       ' au-delà, mise à jour complète plutôt que zone par zone
 Const NB_TRAITS_MAX = 300           ' traits des valeurs sous la barre, au plus
 Private oTextes As Object           ' textes traduits (clé -> texte), chargés au premier usage
 Private sLangue As String
 ' Cartes liées : Global et non Private, car ces variables doivent survivre à la
 ' fin de la macro (l'écouteur de modification est appelé plus tard)
-Global aLiens() As Variant          ' cartes liées suivies : Array(document, plage, écouteur, nom)
+Global aLiens() As Variant          ' cartes liées suivies : Array(document, plage, écouteur, nom, mémoire)
 Global nLiens As Long
 Global bRecalculEnCours As Boolean
+Global nDerniereMaj As Long         ' zones refaites à la dernière mise à jour (-1 : carte entière)
 Global aMenus() As Variant          ' menus contextuels interceptés : Array(contrôleur, intercepteur)
 Global nMenus As Long
 Private sJson As String             ' état du lecteur JSON
@@ -393,36 +395,18 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 				If dTailleLib > 0 Then sLibelle = TrouverLibelle(oLibelles, sNom)
 				If TrouverValeur(oMap, sNom, dVal, sCle) Then
 					oUtilises.put(sCle, True)
-					' Position de la valeur entre le min (0) et le max (1)
-					If dMax = dMin Then
-						dPosition = 1
-					Else
-						dPosition = (dVal - dMin) / (dMax - dMin)
-					End If
-					If bPerso Then
-						iClasse = ClasseDe(aBornes, dVal)
-						If iClasse < 0 Then
-							nCouleur = aPalette(P_VIDE)
-							nHors = nHors + 1
-							Journal("  " & sNom & " = " & dVal & " : hors des classes -> couleur par défaut")
-						Else
-							nCouleur = aCouleursPerso(iClasse)
-						End If
-					ElseIf bContinu Then
-						nCouleur = CouleurDegrade(aCouleurs, dPosition)
-					Else
-						iClasse = Int(dPosition * nClasses)
-						If iClasse > nClasses - 1 Then iClasse = nClasses - 1
-						If iClasse < 0 Then iClasse = 0
-						nCouleur = aCouleurs(iClasse)
+					nCouleur = CouleurDeValeur(dVal, dMin, dMax, aPalette, bPerso, aBornes, aCouleursPerso)
+					If nCouleur < 0 Then
+						nCouleur = aPalette(P_VIDE)
+						nHors = nHors + 1
+						Journal("  " & sNom & " = " & dVal & " : hors des classes -> couleur par défaut")
 					End If
 					sValeur = ""
 					If dTailleVal > 0 Then sValeur = TexteValeur(vTexte, dVal)
 					AppliquerZone(oShape, nCouleur, Tr("alt.value", dVal), bTexte)
 					RetenirTexte(oShape, sLibelle, sValeur, nCouleur, aZonesT, aLibT, aValT, aCoulT, nT)
 					nOk = nOk + 1
-					If JOURNAL_DETAILLE Then Journal("  " & sNom & " = " & dVal & " -> " _
-						& IIf(bContinu, "couleur " & Hex(nCouleur), "classe " & (iClasse + 1)))
+					If JOURNAL_DETAILLE Then Journal("  " & sNom & " = " & dVal & " -> couleur " & Hex(nCouleur))
 				Else
 					AppliquerZone(oShape, aPalette(P_VIDE), Tr("alt.none"), bTexte)
 					RetenirTexte(oShape, sLibelle, "", aPalette(P_VIDE), aZonesT, aLibT, aValT, aCoulT, nT)
@@ -462,6 +446,30 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 Erreur:
 	Journal("ERREUR pendant le coloriage " & Err & " (ligne " & Erl & ") : " & Error$)
 	ColorierConteneurs = nOk
+End Function
+
+' Couleur d'une valeur : classe personnalisée, dégradé continu ou classe
+' d'intervalles égaux entre dMin et dMax. -1 : hors des classes personnalisées.
+Function CouleurDeValeur(ByVal dVal As Double, ByVal dMin As Double, ByVal dMax As Double, aPalette As Variant, _
+		bPerso As Boolean, aBornes As Variant, aCouleursPerso As Variant) As Long
+	Dim dPosition As Double, iClasse As Integer, nClasses As Integer, aCouleurs As Variant
+	If bPerso Then
+		iClasse = ClasseDe(aBornes, dVal)
+		If iClasse < 0 Then CouleurDeValeur = -1 Else CouleurDeValeur = aCouleursPerso(iClasse)
+		Exit Function
+	End If
+	' Position de la valeur entre le min (0) et le max (1)
+	If dMax = dMin Then dPosition = 1 Else dPosition = (dVal - dMin) / (dMax - dMin)
+	aCouleurs = aPalette(P_COULEURS)
+	If aPalette(P_CONTINU) Then
+		CouleurDeValeur = CouleurDegrade(aCouleurs, dPosition)
+	Else
+		nClasses = UBound(aCouleurs) + 1
+		iClasse = Int(dPosition * nClasses)
+		If iClasse > nClasses - 1 Then iClasse = nClasses - 1
+		If iClasse < 0 Then iClasse = 0
+		CouleurDeValeur = aCouleurs(iClasse)
+	End If
 End Function
 
 ' Couleur du dégradé à la position dPosition (0 à 1), interpolée
@@ -3023,7 +3031,7 @@ Sub SuivreLien(oDocCalc As Object, sNom As String)
 	oEcouteur = CreateUnoListener("DonneesCarte_", "com.sun.star.util.XModifyListener")
 	oPlage.addModifyListener(oEcouteur)
 	ReDim Preserve aLiens(nLiens)
-	aLiens(nLiens) = Array(oDocCalc, oPlage, oEcouteur, sNom)
+	aLiens(nLiens) = Array(oDocCalc, oPlage, oEcouteur, sNom, Empty)
 	nLiens = nLiens + 1
 	IntercepterMenu(oDocCalc)
 	Exit Sub
@@ -3086,15 +3094,18 @@ Sub DonneesCarte_disposing(oEvenement As Object)
 End Sub
 
 ' Recolore la carte d'un lien avec les données actuelles. Si la carte a été
-' supprimée de la feuille, le lien est retiré.
-Sub RecalculerLien(oDocCalc As Object, sNom As String)
+' supprimée de la feuille, le lien est retiré. Sans bComplet, seules les
+' zones dont la valeur ou le libellé a changé depuis la dernière mise à jour
+' sont refaites, quand c'est possible (MiseAJourPartielle).
+Sub RecalculerLien(oDocCalc As Object, sNom As String, Optional bComplet As Variant)
 	Dim oPlage As Object, aChamps As Variant, oForme As Object, aData As Variant
 	Dim aPalette As Variant, aPalettes As Variant, oUndo As Object, oColl As Object
-	Dim oDoc As Object, oPage As Object, vTexte As Variant
+	Dim oDoc As Object, oPage As Object, vTexte As Variant, sChamps As String, iLien As Long, bFait As Boolean
 	Dim aProps(1) As New com.sun.star.beans.PropertyValue
 	On Error GoTo Erreur
 	oPlage = oDocCalc.NamedRanges.getByName(sNom).getReferredCells()
-	aChamps = Split(oDocCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sNom), "|")
+	sChamps = oDocCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sNom)
+	aChamps = Split(sChamps, "|")
 	If UBound(aChamps) < 4 Then Exit Sub
 	oForme = TrouverForme(oPlage.getSpreadsheet().getDrawPage(), aChamps(1))
 	If IsNull(oForme) Then
@@ -3115,7 +3126,15 @@ Sub RecalculerLien(oDocCalc As Object, sNom As String)
 	oUndo = oDocCalc.getUndoManager()
 	oUndo.enterHiddenUndoContext()
 	oDocCalc.lockControllers()
-	If aChamps(4) = "1" Then
+	iLien = IndiceLien(oDocCalc, sNom)
+	nDerniereMaj = -1
+	If IsMissing(bComplet) And iLien >= 0 And aChamps(4) <> "1" Then
+		If oForme.supportsService("com.sun.star.drawing.GroupShape") Then
+			bFait = MiseAJourPartielle(oForme, aData, aPalette, vTexte, aLiens(iLien)(4), sChamps)
+		End If
+	End If
+	If bFait Then
+	ElseIf aChamps(4) = "1" Then
 		' Image (carte détaillée) : nouveau rendu depuis le fond de carte
 		aProps(0).Name = "Hidden"
 		aProps(0).Value = True
@@ -3134,6 +3153,8 @@ Sub RecalculerLien(oDocCalc As Object, sNom As String)
 		oColl.add(oForme)
 		ColorierConteneurs(Array(oColl), aData, aPalette, vTexte)
 	End If
+	' Mémoire pour la prochaine mise à jour partielle
+	If iLien >= 0 Then MemoriserCarte(iLien, MemoireCarte(sChamps, aData, vTexte(T_OPTIONS), vTexte(T_TITRE)))
 	oDocCalc.unlockControllers()
 	oUndo.leaveUndoContext()
 	Exit Sub
@@ -3301,6 +3322,145 @@ Fin:
 	On Error Resume Next
 	Journal("Fin.")
 	FermerJournal()
+End Sub
+
+Function IndiceLien(oDocCalc As Object, sNom As String) As Long
+	Dim i As Long
+	IndiceLien = -1
+	For i = 0 To nLiens - 1
+		If EqualUnoObjects(aLiens(i)(0), oDocCalc) And aLiens(i)(3) = sNom Then
+			IndiceLien = i
+			Exit Function
+		End If
+	Next i
+End Function
+
+' Mémoire d'une carte après sa mise à jour : Array(texte du lien, valeurs
+' (code -> valeur), libellés (code -> libellé), min, max, titre, nombre de
+' valeurs)
+Function MemoireCarte(sChamps As String, aData As Variant, aOptions As Variant, sTitre As String) As Variant
+	Dim oValeurs As Object, oLibelles As Object, dMin As Double, dMax As Double, n As Long
+	oValeurs = com.sun.star.container.EnumerableMap.create("string", "double")
+	oLibelles = com.sun.star.container.EnumerableMap.create("string", "string")
+	n = LireDonnees(aData, oValeurs, dMin, dMax, oLibelles, aOptions(O_COL_CODE), aOptions(O_COL_VALEUR), _
+		aOptions(O_COL_LIBELLE))
+	MemoireCarte = Array(sChamps, oValeurs, oLibelles, dMin, dMax, sTitre, n)
+End Function
+
+Sub MemoriserCarte(i As Long, aMemoire As Variant)
+	Dim a As Variant
+	a = aLiens(i)
+	aLiens(i) = Array(a(0), a(1), a(2), a(3), aMemoire)
+End Sub
+
+' Mise à jour zone par zone : ne refait que les zones dont la valeur ou le
+' libellé a changé (couleur, texte alternatif, textes). Renvoie False si une
+' mise à jour complète est nécessaire : pas de mémoire, configuration
+' changée, minimum, maximum ou titre changé (couleurs ou légende de toute la
+' carte), zone qui gagne ou perd sa valeur (« Sans donnée » de la légende),
+' ou trop de zones changées.
+Function MiseAJourPartielle(oGroupe As Object, aData As Variant, aPalette As Variant, vTexte As Variant, _
+		vMemoire As Variant, sChamps As String) As Boolean
+	Dim aOptions As Variant, aNouv As Variant, oChanges As Object, oEnum As Object, sCle As String, n As Long
+	Dim aZones() As Object, nZ As Long, i As Long, oZone As Object, sNom As String, dVal As Double
+	Dim dEchelle As Double, dTailleVal As Double, dTailleLib As Double, sLibelle As String, sValeur As String
+	Dim nCouleur As Long, bPerso As Boolean, aBornes As Variant, aCouleursPerso As Variant
+	MiseAJourPartielle = False
+	If Not IsArray(vMemoire) Then Exit Function
+	If vMemoire(0) <> sChamps Then Exit Function
+	aOptions = vTexte(T_OPTIONS)
+	aNouv = MemoireCarte(sChamps, aData, aOptions, vTexte(T_TITRE))
+	If aNouv(6) = 0 Then Exit Function
+	If aNouv(3) <> vMemoire(3) Or aNouv(4) <> vMemoire(4) Or aNouv(5) <> vMemoire(5) Then Exit Function
+
+	' Codes dont la valeur ou le libellé a changé
+	oChanges = com.sun.star.container.EnumerableMap.create("string", "boolean")
+	If Not ComparerValeurs(vMemoire(1), aNouv(1), oChanges) Then Exit Function
+	If Not ComparerValeurs(aNouv(1), vMemoire(1), oChanges) Then Exit Function
+	ComparerLibelles(vMemoire(2), aNouv(2), oChanges)
+	ComparerLibelles(aNouv(2), vMemoire(2), oChanges)
+	oEnum = oChanges.createKeyEnumeration(False)
+	Do While oEnum.hasMoreElements()
+		oEnum.nextElement()
+		n = n + 1
+	Loop
+	If n > NB_ZONES_PARTIELLE Then Exit Function
+	MiseAJourPartielle = True
+	nDerniereMaj = 0
+	If n = 0 Then Exit Function
+
+	' Zones concernées (relevées avant d'ajouter ou retirer des textes)
+	For i = 0 To oGroupe.getCount() - 1
+		oZone = oGroupe.getByIndex(i)
+		If Not EstAnnexe(oZone.Name) Then
+			If CleTrouvee(oChanges, oZone.Name) <> "" Then
+				ReDim Preserve aZones(nZ) As Object
+				aZones(nZ) = oZone
+				nZ = nZ + 1
+			End If
+		End If
+	Next i
+	dEchelle = LargeurZones(oGroupe) / LARGEUR_CARTE_CALC
+	If aOptions(O_VALEURS) Then dTailleVal = aOptions(O_TAILLE_VALEURS) * dEchelle
+	If aOptions(O_LIBELLES) Then dTailleLib = aOptions(O_TAILLE_LIBELLES) * dEchelle
+	bPerso = LireClasses(aOptions(O_CLASSES), aBornes, aCouleursPerso)
+	For i = 0 To nZ - 1
+		oZone = aZones(i)
+		sNom = oZone.Name
+		SupprimerTextesZone(oGroupe, sNom)
+		sLibelle = ""
+		If dTailleLib > 0 Then sLibelle = TrouverLibelle(aNouv(2), sNom)
+		sValeur = ""
+		If TrouverValeur(aNouv(1), sNom, dVal, sCle) Then
+			nCouleur = CouleurDeValeur(dVal, aNouv(3), aNouv(4), aPalette, bPerso, aBornes, aCouleursPerso)
+			If nCouleur < 0 Then nCouleur = aPalette(P_VIDE)
+			AppliquerZone(oZone, nCouleur, Tr("alt.value", dVal), True)
+			If dTailleVal > 0 Then sValeur = TexteValeur(vTexte, dVal)
+		Else
+			nCouleur = aPalette(P_VIDE)
+			AppliquerZone(oZone, nCouleur, Tr("alt.none"), True)
+		End If
+		TexteZone(vTexte(T_DOCUMENT), oGroupe, oZone, sLibelle, dTailleLib, sValeur, dTailleVal, aOptions, nCouleur)
+	Next i
+	Journal("Mise à jour partielle : " & nZ & " zone(s)")
+	nDerniereMaj = nZ
+End Function
+
+' Ajoute à oChanges les codes de oA absents de oB ou de valeur différente.
+' False si un code a une valeur dans oA et aucune dans oB (mise à jour
+' complète nécessaire)
+Function ComparerValeurs(oA As Object, oB As Object, oChanges As Object) As Boolean
+	Dim oEnum As Object, sCle As String
+	ComparerValeurs = False
+	oEnum = oA.createKeyEnumeration(False)
+	Do While oEnum.hasMoreElements()
+		sCle = oEnum.nextElement()
+		If Not oB.containsKey(sCle) Then Exit Function
+		If oB.get(sCle) <> oA.get(sCle) Then oChanges.put(sCle, True)
+	Loop
+	ComparerValeurs = True
+End Function
+
+' Ajoute à oChanges les codes dont le libellé diffère (ou manque) dans oB
+Sub ComparerLibelles(oA As Object, oB As Object, oChanges As Object)
+	Dim oEnum As Object, sCle As String
+	oEnum = oA.createKeyEnumeration(False)
+	Do While oEnum.hasMoreElements()
+		sCle = oEnum.nextElement()
+		If Not oB.containsKey(sCle) Then
+			oChanges.put(sCle, True)
+		ElseIf oB.get(sCle) <> oA.get(sCle) Then
+			oChanges.put(sCle, True)
+		End If
+	Loop
+End Sub
+
+' Retire les textes d'une zone (texte et copies du contour)
+Sub SupprimerTextesZone(oConteneur As Object, sNom As String)
+	Dim i As Long
+	For i = oConteneur.getCount() - 1 To 0 Step -1
+		If oConteneur.getByIndex(i).Name = PREFIXE_TEXTE & " " & sNom Then oConteneur.remove(oConteneur.getByIndex(i))
+	Next i
 End Sub
 
 ' Retire un lien dont la carte a disparu (plage nommée, propriété, écouteur)
