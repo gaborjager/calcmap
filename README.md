@@ -70,6 +70,14 @@ insérée comme dans Draw : **Afficher les libellés** (libellé sur la 1re lign
   S (souligné). La taille vaut pour la carte insérée dans Calc (16 cm de large) ;
   dans Draw, elle est adaptée pour garder le même aspect.
 - Une zone sans valeur n'affiche que son libellé.
+- **Lisibilité des textes** (liste sous les deux cases) :
+  - **Contour** (par défaut) : texte noir cerné de blanc, texte blanc cerné de
+    noir, lisible sur toutes les couleurs. Le contour est fait de copies du
+    texte décalées tout autour : la mise à jour automatique prend alors 3 s
+    environ pour les départements, au lieu de 0,6 s ;
+  - **Étiquette** : texte noir sur un fond blanc semi-transparent ; très
+    lisible, mais masque davantage la carte ;
+  - **Sans contour**.
 
 Valeurs et libellés suivent la mise à jour automatique (un libellé modifié est
 aussi repris). Au-delà de 5 000 zones, aucun texte n'est
