@@ -31,6 +31,11 @@ code INSEE dans son nom.
 > proposées pour l'instant : elles contiennent trop de zones (constante
 > `CARTES_IGNOREES` du code).
 
+Le dialogue est organisé en cadres : **Carte** (fond de carte, insertion dans la
+feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
+affichage des valeurs), **Libellés** (colonne, affichage), **Textes sur la carte**
+(contour) et **Légende**.
+
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
 pour les palettes « dégradé continu ». Les zones sans

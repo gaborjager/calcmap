@@ -68,7 +68,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.10.0"
+Const VERSION = "0.11.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -83,6 +83,8 @@ Const NOM_PALETTES = "palettes.json"     ' palettes de l'extension et de l'utili
 Const NOM_PREFERENCES = "preferences.properties"   ' dernière carte et palette choisies
 Const PALETTE_PAR_DEFAUT = "bleus"
 Const NB_NUANCES_APERCU = 12             ' cases d'aperçu de palette dans le dialogue
+Const APERCU_X = 168                     ' position et largeur de l'aperçu (unités du dialogue)
+Const APERCU_L = 84
 Const SEUIL_FORMES_CALC = 5000           ' au-delà, carte insérée dans Calc en image
 Const LARGEUR_CARTE_CALC = 16000         ' largeur de la carte insérée (1/100 mm)
 Const POLICE_TEXTE = "Liberation Sans"   ' valeurs et libellés sur la carte (fournie avec LibreOffice)
@@ -1968,47 +1970,56 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
 	oModele.Width = 330
-	oModele.Height = 266
-	AjouterControle(oModele, "FixedText", "lblCarte", 6, 6, 318, 10, Array("Label"), Array(Tr("dlg.map")))
-	AjouterControle(oModele, "ListBox", "lstCarte", 6, 17, 318, 14, _
+	oModele.Height = 334
+	' Carte : fond de carte, description, insertion dans la feuille
+	AjouterCadre(oModele, "grpCarte", 4, 4, 322, 64, Tr("dlg.grp_map"))
+	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 306, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLibelles, Not bConfig))
-	AjouterControle(oModele, "FixedText", "lblDescription", 6, 35, 318, 30, Array("MultiLine"), Array(True))
-	AjouterControle(oModele, "FixedText", "lblPalette", 6, 70, 238, 10, Array("Label"), Array(Tr("dlg.colors")))
-	AjouterControle(oModele, "ListBox", "lstPalette", 6, 81, 110, 14, _
+	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 306, 18, Array("MultiLine"), Array(True))
+	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 52, 306, 12, _
+		Array("Label", "State", "Enabled"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig))
+	' Code : sa colonne
+	AjouterCadre(oModele, "grpCode", 4, 72, 322, 30, Tr("dlg.grp_code"))
+	AjouterListeColonne(oModele, "Code", 84, aColonnes, aOptions(O_COL_CODE))
+	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage
+	AjouterCadre(oModele, "grpValeurs", 4, 106, 322, 80, Tr("dlg.grp_values"))
+	AjouterListeColonne(oModele, "Valeur", 118, aColonnes, aOptions(O_COL_VALEUR))
+	AjouterControle(oModele, "FixedText", "lblPalette", 12, 136, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
+	AjouterControle(oModele, "ListBox", "lstPalette", 54, 134, 110, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 16, aNomsPal))
 	For i = 0 To NB_NUANCES_APERCU - 1
-		AjouterControle(oModele, "FixedText", "nuance" & i, 122, 81, 10, 14, Array("Border"), Array(2))
+		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 134, 10, 14, Array("Border"), Array(2))
 	Next i
-	' Classes : linéaires (palette) ou personnalisées (éditeur)
-	AjouterControle(oModele, "FixedText", "lblClasses", 250, 70, 74, 10, Array("Label"), Array(""))
-	AjouterControle(oModele, "Button", "btnClasses", 250, 81, 74, 14, _
+	AjouterControle(oModele, "Button", "btnClasses", 258, 134, 60, 14, _
 		Array("Label", "PushButtonType", "HelpText"), Array(Tr("dlg.classes"), 0, Tr("dlg.classes_help")))
+	AjouterControle(oModele, "FixedText", "lblClasses", 54, 150, 264, 10, _
+		Array("Label", "TextColor"), Array("", RGB(96, 96, 96)))
 	sClassesDialogue = aOptions(O_CLASSES)
-	' Colonnes de la sélection : code, valeur, libellé
-	AjouterListeColonne(oModele, "Code", 6, Tr("dlg.col_code"), aColonnes, aOptions(O_COL_CODE))
-	AjouterListeColonne(oModele, "Valeur", 114, Tr("dlg.col_value"), aColonnes, aOptions(O_COL_VALEUR))
-	AjouterListeColonne(oModele, "Libelle", 222, Tr("dlg.col_label"), aColonnes, aOptions(O_COL_LIBELLE))
-	AjouterControle(oModele, "CheckBox", "chkInserer", 6, 130, 318, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig))
-	AjouterLigneTexte(oModele, "Valeurs", 147, Tr("dlg.show_values"), aOptions(O_VALEURS), _
+	AjouterLigneTexte(oModele, "Valeurs", 165, Tr("dlg.show_values"), aOptions(O_VALEURS), _
 		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS))
-	AjouterLigneTexte(oModele, "Libelles", 165, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+	' Libellés : colonne, affichage
+	AjouterCadre(oModele, "grpLibelles", 4, 190, 322, 46, Tr("dlg.grp_labels"))
+	AjouterListeColonne(oModele, "Libelle", 202, aColonnes, aOptions(O_COL_LIBELLE))
+	AjouterLigneTexte(oModele, "Libelles", 219, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
 		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES))
-	AjouterControle(oModele, "CheckBox", "chkContour", 6, 185, 318, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.outline"), _
-		IIf(aOptions(O_LISIBILITE) = LISIBILITE_AUCUNE, 0, 1), aOptions(O_VALEURS) Or aOptions(O_LIBELLES)))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 6, 201, 150, 12, _
+	' Textes sur la carte et légende, côte à côte
+	AjouterCadre(oModele, "grpTextes", 4, 240, 160, 44, Tr("dlg.grp_text"))
+	AjouterControle(oModele, "CheckBox", "chkContour", 12, 253, 148, 24, _
+		Array("Label", "State", "Enabled", "MultiLine"), Array(Tr("dlg.outline"), _
+		IIf(aOptions(O_LISIBILITE) = LISIBILITE_AUCUNE, 0, 1), aOptions(O_VALEURS) Or aOptions(O_LIBELLES), True))
+	AjouterCadre(oModele, "grpLegende", 168, 240, 158, 44, Tr("dlg.grp_legend"))
+	AjouterControle(oModele, "CheckBox", "chkLegende", 176, 253, 146, 12, _
 		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 160, 201, 164, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 188, 267, 134, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
 		aOptions(O_LEGENDE)))
-	AjouterControle(oModele, "FixedText", "lblEtat", 6, 218, 318, 24, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 6, 290, 318, 20, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnAutre", 6, 246, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 314, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "Button", "btnOk", 218, 246, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 218, 314, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 274, 246, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 274, 314, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -2079,25 +2090,25 @@ End Function
 Sub AjouterLigneTexte(oModele As Object, sSuffixe As String, nY As Long, sLibelle As String, _
 		bCoche As Boolean, nTaille As Integer, aPolices As Variant, sPolice As String, sStyle As String)
 	Dim aTailles As Variant, i As Integer
-	AjouterControle(oModele, "CheckBox", "chk" & sSuffixe, 6, nY, 114, 12, _
+	AjouterControle(oModele, "CheckBox", "chk" & sSuffixe, 12, nY, 108, 12, _
 		Array("Label", "State"), Array(sLibelle, IIf(bCoche, 1, 0)))
 	' Police et taille : listes où l'on peut aussi saisir
-	AjouterControle(oModele, "ComboBox", "cboPolice" & sSuffixe, 122, nY - 1, 110, 14, _
+	AjouterControle(oModele, "ComboBox", "cboPolice" & sSuffixe, 122, nY - 1, 100, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Text", "Autocomplete", "HelpText", "Enabled"), _
 		Array(True, 16, aPolices, sPolice, True, Tr("dlg.font"), bCoche))
 	aTailles = Split(TAILLES_PROPOSEES, "|")
 	For i = 0 To UBound(aTailles)
 		aTailles(i) = aTailles(i) & " pt"
 	Next i
-	AjouterControle(oModele, "ComboBox", "cboTaille" & sSuffixe, 236, nY - 1, 40, 14, _
+	AjouterControle(oModele, "ComboBox", "cboTaille" & sSuffixe, 226, nY - 1, 40, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Text", "HelpText", "Enabled"), _
 		Array(True, 12, aTailles, TailleValide(nTaille) & " pt", Tr("dlg.text_size"), bCoche))
 	' Gras, italique, souligné : boutons à bascule, lettre dans le style
-	AjouterBoutonStyle(oModele, "btnGras" & sSuffixe, 280, nY - 1, Tr("dlg.bold_short"), Tr("dlg.bold"), _
+	AjouterBoutonStyle(oModele, "btnGras" & sSuffixe, 270, nY - 1, Tr("dlg.bold_short"), Tr("dlg.bold"), _
 		InStr(sStyle, "B") > 0, bCoche, "FontWeight", com.sun.star.awt.FontWeight.BOLD)
-	AjouterBoutonStyle(oModele, "btnItalique" & sSuffixe, 296, nY - 1, Tr("dlg.italic_short"), Tr("dlg.italic"), _
+	AjouterBoutonStyle(oModele, "btnItalique" & sSuffixe, 286, nY - 1, Tr("dlg.italic_short"), Tr("dlg.italic"), _
 		InStr(sStyle, "I") > 0, bCoche, "FontSlant", com.sun.star.awt.FontSlant.ITALIC)
-	AjouterBoutonStyle(oModele, "btnSouligne" & sSuffixe, 312, nY - 1, Tr("dlg.underline_short"), Tr("dlg.underline"), _
+	AjouterBoutonStyle(oModele, "btnSouligne" & sSuffixe, 302, nY - 1, Tr("dlg.underline_short"), Tr("dlg.underline"), _
 		InStr(sStyle, "U") > 0, bCoche, "FontUnderline", com.sun.star.awt.FontUnderline.SINGLE)
 End Sub
 
@@ -2108,17 +2119,22 @@ Sub AjouterBoutonStyle(oModele As Object, sNom As String, nX As Long, nY As Long
 		Array(sLettre, sAide, True, IIf(bEnfonce, 1, 0), bActif, 0, vStyle))
 End Sub
 
-' Liste déroulante d'une colonne (lbl<sSuffixe>, lst<sSuffixe>)
-Sub AjouterListeColonne(oModele As Object, sSuffixe As String, nX As Long, sLibelle As String, _
-		aColonnes As Variant, iDefaut As Integer)
+' Liste déroulante d'une colonne dans son cadre (lbl<sSuffixe>, lst<sSuffixe>)
+Sub AjouterListeColonne(oModele As Object, sSuffixe As String, nY As Long, aColonnes As Variant, iDefaut As Integer)
 	Dim i As Integer
 	i = iDefaut
 	If i > UBound(aColonnes) Then i = UBound(aColonnes)
 	If i < 0 Then i = 0
-	AjouterControle(oModele, "FixedText", "lbl" & sSuffixe, nX, 100, 102, 10, Array("Label"), Array(sLibelle))
-	AjouterControle(oModele, "ListBox", "lst" & sSuffixe, nX, 111, 102, 14, _
+	AjouterControle(oModele, "FixedText", "lbl" & sSuffixe, 12, nY + 2, 40, 10, Array("Label"), Array(Tr("dlg.column")))
+	AjouterControle(oModele, "ListBox", "lst" & sSuffixe, 54, nY, 264, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 12, aColonnes))
 	oModele.getByName("lst" & sSuffixe).SelectedItems = Array(i)
+End Sub
+
+' Cadre (titre et bordure) regroupant des contrôles
+Sub AjouterCadre(oModele As Object, sNom As String, nX As Long, nY As Long, nLargeur As Long, nHauteur As Long, _
+		sTitre As String)
+	AjouterControle(oModele, "GroupBox", sNom, nX, nY, nLargeur, nHauteur, Array("Label"), Array(sTitre))
 End Sub
 
 ' Valeurs d'une ligne de texte du dialogue (case, taille, police, style)
@@ -2221,7 +2237,7 @@ Sub AfficherPalette(ByVal i As Long)
 	bContinu = aPalettesDialogue(i)(P_CONTINU)
 	n = UBound(aCouleurs) + 1
 	If bContinu Or n > NB_NUANCES_APERCU Then n = NB_NUANCES_APERCU
-	nLargeur = Int(122 / n)
+	nLargeur = Int(APERCU_L / n)
 	If nLargeur > 20 Then nLargeur = 20
 	For k = 0 To NB_NUANCES_APERCU - 1
 		oCase = oDialogue.getControl("nuance" & k)
@@ -2231,7 +2247,7 @@ Sub AfficherPalette(ByVal i As Long)
 			Else
 				nCouleur = aCouleurs(k)
 			End If
-			oCase.getModel().PositionX = 122 + k * nLargeur
+			oCase.getModel().PositionX = APERCU_X + k * nLargeur
 			oCase.getModel().Width = nLargeur
 			oCase.getModel().Border = IIf(bContinu, 0, 2)
 			oCase.getModel().BackgroundColor = nCouleur
