@@ -73,9 +73,9 @@ insérée comme dans Draw : **Afficher les libellés** (libellé sur la 1re lign
 
 Valeurs et libellés suivent la mise à jour automatique (un libellé modifié est
 aussi repris). Au-delà de 5 000 zones, aucun texte n'est
-affiché (trop long à créer et illisible). Un texte peut être en partie masqué par
-une zone voisine, et les petites zones (Paris et sa petite couronne) sont peu
-lisibles. Les choix sont mémorisés ; les deux cases sont décochées par défaut.
+affiché (trop long à créer et illisible). Les textes sont des formes séparées,
+placées au-dessus de toutes les zones : une zone voisine ne les masque jamais.
+Dans les petites zones (Paris et sa petite couronne), ils peuvent se chevaucher. Les choix sont mémorisés ; les deux cases sont décochées par défaut.
 
 ### Légende
 
@@ -312,6 +312,20 @@ reproductibles) :
 python3 tests/generer_tests.py                        # fichiers manquants
 python3 tests/generer_tests.py departements --force   # réécrire une carte
 ```
+
+### Tests automatiques (sans écran)
+
+`tests/headless/lancer.sh <macro>` lance une macro de test de
+`tests/headless/tests_calcmap.bas` dans LibreOffice sans écran, sur une copie de
+l'extension et un profil jetable, et affiche les lignes `TEST` du journal :
+
+```bash
+tests/headless/lancer.sh TestTextes            # textes des zones, légende
+tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, flèches, saisie)
+```
+
+Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
+et les clics ou saisies simulés en appelant leurs écouteurs.
 
 ## Organisation
 

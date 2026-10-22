@@ -28,9 +28,10 @@ REM  nom). Toute modification des valeurs recolore la carte. Le lien est
 REM  enregistré avec le classeur et reconnecté à son ouverture (événement
 REM  « Ouvrir le document » déclaré par l'extension dans Events.xcu).
 REM
-REM  Valeurs et libellés sur la carte (options du dialogue) : le libellé
-REM  (3e colonne) et la valeur de chaque zone sont écrits comme texte de la
-REM  forme, sur deux paragraphes, la valeur au format de nombre de la colonne
+REM  Valeurs et libellés sur la carte (options du dialogue) : le libellé et la
+REM  valeur de chaque zone sont écrits dans une forme texte séparée (nommée
+REM  PREFIXE_TEXTE), centrée sur la zone et placée après toutes les zones pour
+REM  ne jamais être masquée par une zone voisine ; deux paragraphes, la valeur au format de nombre de la colonne
 REM  Calc, en blanc sur les couleurs foncées et en noir sur les claires, aux
 REM  tailles choisies dans le dialogue (points, sur la carte insérée dans Calc ;
 REM  même aspect dans Draw). Au-delà de SEUIL_FORMES_CALC
@@ -67,7 +68,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.7.3"
+Const VERSION = "0.8.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -93,6 +94,7 @@ Const LARGEUR_IMAGE_PX = 2400            ' largeur de l'image PNG (cartes détai
 Const NOM_IMAGE = "carte-inseree.png"    ' image temporaire, dans le cache
 Const URL_CONFIGURER = "vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?language=Basic&location=application"
 Const PREFIXE_LEGENDE = "CalcMap légende"   ' nom des formes de la légende
+Const PREFIXE_TEXTE = "CalcMap texte"       ' nom des textes des zones (suivi du code)
 Const NB_VALEURS_APERCU = 3            ' valeurs montrées par colonne dans le dialogue
 Const NB_LIGNES_APERCU = 20            ' lignes parcourues pour les trouver
 Const NB_CLASSES_MAX = 20               ' classes personnalisées au plus
@@ -252,8 +254,8 @@ Sub CalcMap()
 		aOptions(O_VALEURS) = False
 		aOptions(O_LIBELLES) = False
 	End If
-	' Légende : créée dans Draw ; pour une carte insérée dans Calc, par le
-	' recoloriage qui suit l'insertion (les formes copiées ne la reprennent pas)
+	' Textes et légende : créés dans Draw ; pour une carte insérée dans Calc,
+	' par le recoloriage qui suit l'insertion (seules les zones sont copiées)
 	If Not bInserer Then oDocLegende = oDoc
 	vTexte = ContexteTexte(oDocCalc, oPlage, aData, aOptions, oDocLegende)
 	nOk = ColorierDocument(oDoc, aData, aPalette, vTexte)
@@ -265,7 +267,10 @@ Sub CalcMap()
 			oForme = InsererDansCalc(oDoc, oDocCalc, oPlage, NomFichier(sUrl), bImage)
 			If Not IsNull(oForme) Then
 				sLien = CreerLien(oDocCalc, oSelection, oForme, aPalette(P_ID), sUrl, bImage, aOptions)
-				If aOptions(O_LEGENDE) And sLien <> "" Then RecalculerLien(oDocCalc, sLien)
+				' Textes et légende : créés par le recoloriage dans la feuille
+				If (aOptions(O_LEGENDE) Or aOptions(O_VALEURS) Or aOptions(O_LIBELLES)) And sLien <> "" Then
+					RecalculerLien(oDocCalc, sLien)
+				End If
 			End If
 			oDocCalc.getUndoManager().leaveUndoContext()
 		End If
@@ -326,8 +331,10 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 	Dim i As Long, j As Long, nOk As Long, nSans As Long
 	Dim oUtilises As Object, sCle As String, oEnum As Object, nInconnus As Long
 	Dim bPerso As Boolean, aBornes As Variant, aCouleursPerso As Variant, nHors As Long
+	Dim aZonesT As Variant, aLibT As Variant, aValT As Variant, aCoulT As Variant, nT As Long
 	On Error GoTo Erreur
 	ColorierConteneurs = 0
+	aZonesT = Array() : aLibT = Array() : aValT = Array() : aCoulT = Array()
 	oUtilises = com.sun.star.container.EnumerableMap.create("string", "boolean")
 	aOptions = vTexte(T_OPTIONS)
 	bPerso = LireClasses(aOptions(O_CLASSES), aBornes, aCouleursPerso)
@@ -378,7 +385,7 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 			On Error Resume Next
 			sNom = oShape.getName()
 			On Error GoTo Erreur
-			If sNom <> "" And Not EstLegende(sNom) Then
+			If sNom <> "" And Not EstAnnexe(sNom) Then
 				sLibelle = ""
 				If dTailleLib > 0 Then sLibelle = TrouverLibelle(oLibelles, sNom)
 				If TrouverValeur(oMap, sNom, dVal, sCle) Then
@@ -408,14 +415,14 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 					End If
 					sValeur = ""
 					If dTailleVal > 0 Then sValeur = TexteValeur(vTexte, dVal)
-					AppliquerZone(oShape, nCouleur, Tr("alt.value", dVal), bTexte, sLibelle, dTailleLib, _
-						sValeur, dTailleVal, aOptions)
+					AppliquerZone(oShape, nCouleur, Tr("alt.value", dVal), bTexte)
+					RetenirTexte(oShape, sLibelle, sValeur, nCouleur, aZonesT, aLibT, aValT, aCoulT, nT)
 					nOk = nOk + 1
 					If JOURNAL_DETAILLE Then Journal("  " & sNom & " = " & dVal & " -> " _
 						& IIf(bContinu, "couleur " & Hex(nCouleur), "classe " & (iClasse + 1)))
 				Else
-					AppliquerZone(oShape, aPalette(P_VIDE), Tr("alt.none"), bTexte, sLibelle, dTailleLib, _
-						"", 0, aOptions)
+					AppliquerZone(oShape, aPalette(P_VIDE), Tr("alt.none"), bTexte)
+					RetenirTexte(oShape, sLibelle, "", aPalette(P_VIDE), aZonesT, aLibT, aValT, aCoulT, nT)
 					nSans = nSans + 1
 					If JOURNAL_DETAILLE Then Journal("  " & sNom & " : pas de donnée -> couleur par défaut")
 				End If
@@ -435,9 +442,15 @@ Function ColorierConteneurs(aConteneurs As Variant, aData As Variant, aPalette A
 	Journal("Zones coloriées : " & nOk & " ; sans donnée (couleur par défaut) : " & nSans _
 		& " ; codes inconnus de la carte : " & nInconnus & IIf(bPerso, " ; hors des classes : " & nHors, ""))
 
-	' Légende : retirée puis recréée (couleurs et bornes à jour)
+	' Textes des zones et légende : retirés puis recréés, au-dessus des zones
 	If Not IsNull(vTexte(T_DOCUMENT)) Then
-		SupprimerLegende(aConteneurs(0))
+		SupprimerAnnexes(aConteneurs(0))
+		If bTexte Then
+			For i = 0 To nT - 1
+				TexteZone(vTexte(T_DOCUMENT), aConteneurs(0), aZonesT(i), aLibT(i), dTailleLib, aValT(i), _
+					dTailleVal, aOptions, aCoulT(i))
+			Next i
+		End If
 		If aOptions(O_LEGENDE) Then CreerLegende(vTexte, aConteneurs(0), aPalette, dMin, dMax, _
 			nValides > 0, nSans + nHors > 0, dEchelle)
 	End If
@@ -468,16 +481,44 @@ End Function
 ' Applique couleur et texte alternatif, et si bTexte le texte de la zone
 ' (libellé et valeur ; vides : texte effacé) ; une forme récalcitrante est
 ' ignorée
-Sub AppliquerZone(oShape As Object, nCouleur As Long, sTexte As String, bTexte As Boolean, _
-		sLibelle As String, dTailleLib As Double, sValeur As String, dTailleVal As Double, aOptions As Variant)
-	Dim aTextes(1) As String, aTailles(1) As Double, aPolices(1) As String, aStyles(1) As String
-	Dim n As Integer
+Sub AppliquerZone(oShape As Object, nCouleur As Long, sTexte As String, bTexte As Boolean)
 	On Error GoTo Erreur
 	oShape.FillStyle = com.sun.star.drawing.FillStyle.SOLID
 	oShape.FillColor = nCouleur
 	If ECRIRE_TEXTE_ALT Then oShape.Description = TexteAlternatif(oShape.Description, sTexte)
-	If Not bTexte Then Exit Sub
-	n = 0
+	' Texte écrit dans la zone par les versions précédentes : retiré (les
+	' textes sont maintenant des formes séparées, au-dessus de la carte)
+	If bTexte Then
+		If oShape.getString() <> "" Then oShape.setString("")
+	End If
+	Exit Sub
+Erreur:
+	Journal("  forme ignorée (" & Error$ & ")")
+End Sub
+
+' Retient le texte d'une zone (libellé et/ou valeur), créé après le coloriage
+Sub RetenirTexte(oZone As Object, sLibelle As String, sValeur As String, nCouleur As Long, _
+		aZones As Variant, aLib As Variant, aVal As Variant, aCoul As Variant, n As Long)
+	If sLibelle = "" And sValeur = "" Then Exit Sub
+	ReDim Preserve aZones(n)
+	ReDim Preserve aLib(n)
+	ReDim Preserve aVal(n)
+	ReDim Preserve aCoul(n)
+	aZones(n) = oZone
+	aLib(n) = sLibelle
+	aVal(n) = sValeur
+	aCoul(n) = nCouleur
+	n = n + 1
+End Sub
+
+' Forme texte d'une zone : libellé puis valeur, centrée sur la zone, ajoutée
+' au conteneur après les zones (donc au-dessus) ; couleur selon le fond
+Sub TexteZone(oDoc As Object, oConteneur As Object, oZone As Object, sLibelle As String, dTailleLib As Double, _
+		sValeur As String, dTailleVal As Double, aOptions As Variant, nFond As Long)
+	Dim oTexte As Object, aTextes(1) As String, aTailles(1) As Double, aPolices(1) As String, aStyles(1) As String
+	Dim n As Integer, oEnum As Object, oPara As Object, k As Integer, p As Variant, t As Variant
+	Dim oPos As New com.sun.star.awt.Point
+	On Error GoTo Erreur
 	If sLibelle <> "" Then
 		aTextes(n) = sLibelle : aTailles(n) = dTailleLib
 		aPolices(n) = aOptions(O_POLICE_LIBELLES) : aStyles(n) = aOptions(O_STYLE_LIBELLES)
@@ -488,18 +529,37 @@ Sub AppliquerZone(oShape As Object, nCouleur As Long, sTexte As String, bTexte A
 		aPolices(n) = aOptions(O_POLICE_VALEURS) : aStyles(n) = aOptions(O_STYLE_VALEURS)
 		n = n + 1
 	End If
-	If n = 0 Then
-		If oShape.getString() <> "" Then oShape.setString("")
-	Else
-		ReDim Preserve aTextes(n - 1) As String
-		ReDim Preserve aTailles(n - 1) As Double
-		ReDim Preserve aPolices(n - 1) As String
-		ReDim Preserve aStyles(n - 1) As String
-		EcrireParagraphes(oShape, aTextes, aTailles, aPolices, aStyles, CouleurTexte(nCouleur))
-	End If
+	If n = 0 Then Exit Sub
+	ReDim Preserve aTextes(n - 1) As String
+	oTexte = oDoc.createInstance("com.sun.star.drawing.TextShape")
+	oConteneur.add(oTexte)
+	oTexte.Name = PREFIXE_TEXTE & " " & oZone.Name
+	oTexte.TextAutoGrowWidth = True
+	oTexte.TextAutoGrowHeight = True
+	oTexte.TextWordWrap = False
+	oTexte.TextLeftDistance = 0
+	oTexte.TextRightDistance = 0
+	oTexte.TextUpperDistance = 0
+	oTexte.TextLowerDistance = 0
+	oTexte.setString(Join(aTextes, Chr(10)))
+	oTexte.CharColor = CouleurTexte(nFond)
+	oEnum = oTexte.getText().createEnumeration()
+	k = 0
+	Do While oEnum.hasMoreElements() And k < n
+		oPara = oEnum.nextElement()
+		oPara.ParaAdjust = com.sun.star.style.ParagraphAdjust.CENTER
+		AppliquerPolice(oPara, aPolices(k), aTailles(k), aStyles(k))
+		k = k + 1
+	Loop
+	' Centre du texte sur le centre de la zone (taille connue une fois écrit)
+	p = oZone.Position
+	t = oZone.Size
+	oPos.X = p.X + t.Width / 2 - oTexte.Size.Width / 2
+	oPos.Y = p.Y + t.Height / 2 - oTexte.Size.Height / 2
+	oTexte.setPosition(oPos)
 	Exit Sub
 Erreur:
-	Journal("  forme ignorée (" & Error$ & ")")
+	Journal("  texte de la zone " & oZone.Name & " non créé (" & Error$ & ")")
 End Sub
 
 ' Ajoute la valeur au texte alternatif existant :
@@ -645,12 +705,13 @@ Defaut:
 	LargeurZones = LARGEUR_CARTE_CALC
 End Function
 
-' Rectangle (1/100 mm) occupé par les zones d'un conteneur, légende exclue
+' Rectangle (1/100 mm) occupé par les zones d'un conteneur, textes et légende
+' exclus
 Sub EtendueZones(o As Object, x1 As Double, y1 As Double, x2 As Double, y2 As Double)
 	Dim i As Long, oZ As Object, bInit As Boolean, p As Variant, t As Variant
 	For i = 0 To o.getCount() - 1
 		oZ = o.getByIndex(i)
-		If Not EstLegende(oZ.Name) Then
+		If Not EstAnnexe(oZ.Name) Then
 			p = oZ.Position
 			t = oZ.Size
 			If Not bInit Then
@@ -864,6 +925,11 @@ Function EstLegende(sNom As String) As Boolean
 	EstLegende = (Left(sNom, Len(PREFIXE_LEGENDE)) = PREFIXE_LEGENDE)
 End Function
 
+' Forme ajoutée par CalcMap à la carte (texte d'une zone, légende) : pas une zone
+Function EstAnnexe(sNom As String) As Boolean
+	EstAnnexe = EstLegende(sNom) Or (Left(sNom, Len(PREFIXE_TEXTE)) = PREFIXE_TEXTE)
+End Function
+
 Function AccepteLegende(oConteneur As Object) As Boolean
 	On Error GoTo Erreur
 	AccepteLegende = oConteneur.supportsService("com.sun.star.drawing.GroupShape") _
@@ -873,16 +939,17 @@ Erreur:
 	AccepteLegende = False
 End Function
 
-Sub SupprimerLegende(oConteneur As Object)
+' Retire textes des zones et légende d'un conteneur (avant de les recréer)
+Sub SupprimerAnnexes(oConteneur As Object)
 	Dim i As Long
 	On Error GoTo Erreur
 	If Not AccepteLegende(oConteneur) Then Exit Sub
 	For i = oConteneur.getCount() - 1 To 0 Step -1
-		If EstLegende(oConteneur.getByIndex(i).Name) Then oConteneur.remove(oConteneur.getByIndex(i))
+		If EstAnnexe(oConteneur.getByIndex(i).Name) Then oConteneur.remove(oConteneur.getByIndex(i))
 	Next i
 	Exit Sub
 Erreur:
-	Journal("ERREUR à la suppression de la légende : " & Error$)
+	Journal("ERREUR à la suppression des textes et de la légende : " & Error$)
 End Sub
 
 Sub CreerLegende(vTexte As Variant, oConteneur As Object, aPalette As Variant, dMin As Double, _
