@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "title": "Catalogue CalcMap",
+  "description": "Sources de fonds de carte proposées par CalcMap. Chaque source est un catalogue de cartes au format de france-odg (output/maps.json).",
+  "sources": [
+    {
+      "id": "france-odg",
+      "title": "Cartes de France (france-odg)",
+      "url": "https://raw.githubusercontent.com/gaborjager/france-odg/main/output/maps.json"
+    }
+  ]
+}

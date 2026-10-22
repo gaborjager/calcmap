@@ -27,12 +27,12 @@ code INSEE dans son nom.
 8. Cocher **Afficher la légende**, **avec les valeurs** (bornes de chaque classe)
    ou sans.
 
-> Les cartes des cantons et des communes du catalogue france-odg ne sont pas
-> proposées pour l'instant : elles contiennent trop de zones (constante
-> `CARTES_IGNOREES` du code).
+> Seules les cartes d'au plus **200 zones** sont proposées (paramètre `ZonesMax`,
+> voir *Paramètres*) : avec le catalogue actuel, les régions et les départements.
+> Les cantons (2 306 zones) et les communes (35 191) sont écartés.
 
-Le dialogue est organisé en cadres : **Carte** (fond de carte, insertion dans la
-feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
+Le dialogue est organisé en cadres : **Carte** (fond de carte, son aperçu,
+insertion dans la feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
 affichage des valeurs), **Libellés** (colonne, affichage) et **Légende**.
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
@@ -224,10 +224,78 @@ Le catalogue france-odg peut aussi fournir des champs traduits (`title_en`,
 
 ## Fonds de carte et cache
 
-La liste des cartes vient du catalogue
-[`maps.json`](https://raw.githubusercontent.com/gaborjager/france-odg/refs/heads/main/output/maps.json)
-de france-odg, lu à chaque exécution. Les cartes sont téléchargées à la demande
-dans le profil LibreOffice :
+### Catalogue
+
+La liste des cartes vient d'un **catalogue agrégé**, lu à chaque exécution : par
+défaut [`catalogue/catalogue.json`](catalogue/catalogue.json) de ce projet. Il liste
+des **sources**, chacune un catalogue de cartes au format de
+[france-odg](https://github.com/gaborjager/france-odg) (`maps.json`) ; pour
+l'instant une seule, france-odg.
+
+```json
+{
+  "version": 1,
+  "title": "Catalogue CalcMap",
+  "sources": [
+    { "id": "france-odg", "title": "Cartes de France (france-odg)",
+      "url": "https://raw.githubusercontent.com/gaborjager/france-odg/main/output/maps.json" }
+  ]
+}
+```
+
+- Une source par catalogue de cartes ; `id` (lettres, chiffres, `-`, `_`) nomme sa
+  copie en cache. Une carte dont l'identifiant est déjà fourni par une source
+  précédente est ignorée.
+- Le paramètre `Catalogue` peut aussi désigner directement un catalogue de cartes
+  (`maps.json`).
+- URL acceptées (catalogue, sources, cartes, aperçus) : `https://`, ou `file:///`
+  pour un partage réseau.
+- Champs utilisés d'une carte : `id`, `title`, `description`, `url`,
+  `filename`, `size`, `sha256`, et s'ils existent `objects` (nombre de zones,
+  pour le filtre) et `preview` / `preview_sha256` (aperçu SVG, PNG ou JPEG).
+
+### Paramètres
+
+Deux paramètres, dans la configuration de LibreOffice
+(`/fr.github.gaborjager.CalcMap/Parametres`) :
+
+| Paramètre | Par défaut | Rôle |
+|---|---|---|
+| `Catalogue` | `https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json` | catalogue agrégé (ou catalogue de cartes) |
+| `ZonesMax` | `200` | cartes proposées : au plus ce nombre de zones |
+
+- **Un utilisateur** : *Outils → Options → LibreOffice → Avancé → Ouvrir la
+  configuration avancée*, chercher `CalcMap`.
+- **Une entreprise** fournit son propre catalogue (ses sources : france-odg, ses
+  cartes internes…) et le déploie avec un fichier `.xcu`, par exemple dans une
+  petite extension ou dans la configuration partagée de LibreOffice
+  (`share/registry/`) :
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+      xmlns:xs="http://www.w3.org/2001/XMLSchema"
+      oor:name="CalcMap" oor:package="fr.github.gaborjager">
+   <node oor:name="Parametres">
+    <prop oor:name="Catalogue" oor:finalized="true">
+     <value>https://intranet.exemple.fr/cartes/catalogue.json</value>
+    </prop>
+   </node>
+  </oor:component-data>
+  ```
+
+  `oor:finalized="true"` empêche l'utilisateur de le modifier.
+
+### Aperçu
+
+La carte choisie dans la liste est montrée à droite (aperçu `preview` du
+catalogue, téléchargé dans le cache et vérifié par son empreinte). Sans aperçu,
+ou s'il est illisible, une image neutre est affichée.
+
+### Cache
+
+Le catalogue, ses sources, les cartes et les aperçus sont gardés dans le profil
+LibreOffice :
 
 - Windows : `%APPDATA%\LibreOffice\4\user\calcmap\`
 - Linux : `~/.config/libreoffice/4/user/calcmap/`
@@ -237,9 +305,11 @@ celle du catalogue : la carte n'est retéléchargée que si elle a changé. Un
 téléchargement dont l'empreinte ne correspond pas est rejeté. La carte s'ouvre
 comme un nouveau document (modèle) : l'enregistrer ne modifie jamais le cache.
 
-**Sans réseau**, la liste ne propose que les cartes déjà téléchargées (ainsi que
-tout autre `.odg` déposé dans ce dossier). Le réseau passe par LibreOffice :
-un proxy se règle dans **Outils → Options → Internet → Proxy**.
+**Sans réseau**, les copies en cache du catalogue et des sources sont utilisées,
+et la liste ne propose que les cartes déjà téléchargées (ainsi que tout autre
+`.odg` déposé dans ce dossier). Au tout premier lancement sans réseau, le
+catalogue fourni avec l'extension sert de secours. Le réseau passe par
+LibreOffice : un proxy se règle dans **Outils → Options → Internet → Proxy**.
 
 ## Comportement face aux données imparfaites
 
@@ -318,7 +388,7 @@ du code Basic et reportée dans `description.xml`.
 ## Fichiers de test
 
 Un classeur par fond de carte du catalogue (ceux des cantons et des communes
-sont conservés, bien que ces cartes ne soient pas proposées pour l'instant) : `tests/test-<carte>.ods`, avec les
+servent si le paramètre `ZonesMax` est relevé) : `tests/test-<carte>.ods`, avec les
 colonnes *Code | Valeur (test) | Nom* et une ligne par zone. Sélectionner les
 colonnes A:B puis lancer la commande avec la carte correspondante : toutes les
 zones doivent être coloriées, sans code inconnu dans le journal.
@@ -340,6 +410,7 @@ l'extension et un profil jetable, et affiche les lignes `TEST` du journal :
 ```bash
 tests/headless/lancer.sh TestTextes            # textes des zones, légende
 tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, flèches, saisie)
+tests/headless/lancer.sh TestCatalogue         # catalogue agrégé, filtre, aperçus (fichiers locaux)
 ```
 
 Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
@@ -351,6 +422,7 @@ et les clics ou saisies simulés en appelant leurs écouteurs.
 calcmap/
 ├── build.py                    construit dist/CalcMap.oxt
 ├── dist/CalcMap.oxt            extension prête à installer
+├── catalogue/catalogue.json    catalogue agrégé (sources de cartes), aussi inclus dans l'extension
 ├── src/
 │   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
 │   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)
@@ -359,9 +431,10 @@ calcmap/
 │   ├── description/            description de l'extension par langue
 │   ├── Addons.xcu              bouton, entrée de menu, icône
 │   ├── Events.xcu              reconnexion des cartes liées à l'ouverture
+│   ├── CalcMap.xcs             paramètres (Catalogue, ZonesMax)
 │   ├── description.xml         identifiant et version de l'extension
 │   ├── META-INF/manifest.xml
-│   └── icons/                  icône globe 16 et 26 px
+│   └── icons/                  icône globe 16 et 26 px, image « pas d'aperçu »
 └── tests/
     ├── generer_tests.py        (re)génère les classeurs test-<carte>.ods
     ├── test-regions.ods        13 régions        ┐
@@ -369,5 +442,6 @@ calcmap/
     ├── test-cantons.ods        2 294 cantons     │ une ligne par zone de la carte
     ├── test-communes.ods       35 191 communes   ┘
     ├── test-cas-limites.ods    en-têtes, vides, textes, erreurs, doublons…
-    └── apercu-test-departements.png
+    ├── apercu-test-departements.png
+    └── headless/               tests sans écran (lancer.sh, macros, fixtures)
 ```

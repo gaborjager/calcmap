@@ -11,8 +11,11 @@ REM   2. Cliquer sur l'icône globe (ou Outils > CalcMap : colorier une carte…
 REM   3. Choisir le fond de carte dans la liste (catalogue france-odg), ou un
 REM      autre fichier .odg avec « Autre fichier… », et la palette de couleurs.
 REM
-REM  Fonds de carte : le catalogue maps.json de france-odg est lu à chaque
-REM  exécution. Les cartes sont téléchargées dans le profil LibreOffice
+REM  Fonds de carte : le catalogue agrégé (paramètre Catalogue, par défaut
+REM  catalogue/catalogue.json du projet) liste des sources, chacune un
+REM  catalogue de cartes au format de france-odg (maps.json) ; il est lu à
+REM  chaque exécution. Seules les cartes d'au plus ZonesMax zones (paramètre,
+REM  200 par défaut) sont proposées. Les cartes sont téléchargées dans le profil LibreOffice
 REM  ($(user)/calcmap/) et retéléchargées seulement si leur empreinte
 REM  SHA-256 diffère de celle du catalogue. Sans réseau, seules les cartes
 REM  déjà téléchargées sont proposées.
@@ -68,17 +71,21 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.12.0"
+Const VERSION = "0.13.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
 Const NOM_JOURNAL = "calcmap.log"
-Const URL_CATALOGUE = "https://raw.githubusercontent.com/gaborjager/france-odg/refs/heads/main/output/maps.json"
+' Paramètres (CalcMap.xcs) : catalogue et nombre de zones au plus ; valeurs de
+' secours si la configuration est illisible
+Const NOEUD_PARAMETRES = "/fr.github.gaborjager.CalcMap/Parametres"
+Const CATALOGUE_PAR_DEFAUT = "https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json"
+Const ZONES_MAX_PAR_DEFAUT = 200
 Const DOSSIER_CARTES = "calcmap"         ' cache des fonds de carte, dans le profil
 Const ANCIEN_DOSSIER = "coloriercarte"   ' cache de l'ancienne extension ColorierCarte (repris)
-Const NOM_CATALOGUE = "maps.json"        ' copie locale du catalogue (mode hors ligne)
+Const NOM_CATALOGUE = "catalogue.json"   ' copie locale du catalogue agrégé (mode hors ligne)
+Const DOSSIER_APERCUS = "apercus"        ' aperçus des cartes, dans le cache
 Const CARTE_PAR_DEFAUT = "departements"
-Const CARTES_IGNOREES = "|cantons|communes|"   ' cartes du catalogue non proposées (id entre |) : trop lourdes
 Const NOM_PALETTES = "palettes.json"     ' palettes de l'extension et de l'utilisateur
 Const NOM_PREFERENCES = "preferences.properties"   ' dernière carte et palette choisies
 Const PALETTE_PAR_DEFAUT = "bleus"
@@ -113,6 +120,10 @@ Const C_FICHIER = 4
 Const C_TAILLE = 5
 Const C_SHA256 = 6
 Const C_LOCALE = 7
+Const C_OBJETS = 8                  ' nombre de zones (0 : inconnu)
+Const C_APERCU = 9                  ' URL de l'aperçu ("" : aucun)
+Const C_APERCU_SHA = 10
+Const C_SOURCE = 11                 ' source du catalogue agrégé
 
 ' Options d'une carte (tableau renvoyé par OptionsParDefaut). Même ordre dans
 ' le lien (à partir du 6e champ) ; noms dans les préférences : NOMS_OPTIONS.
@@ -1576,38 +1587,156 @@ End Function
 
 ' Liste des cartes : catalogue en ligne (copié en cache) ou, sans réseau,
 ' cartes présentes dans le cache.
-Function ChargerCatalogue(sDossier As String, bEnLigne As Boolean) As Variant
-	Dim sCat As String, sEmpreinte As String, aCartes As Variant
+Function ChargerCatalogue(sDossier As String, bEnLigne As Boolean, Optional bCacheSeul As Variant) As Variant
+	Dim sCat As String, sEmpreinte As String, aCartes As Variant, oSFA As Object, sAgregat As String
+	Dim bTelecharger As Boolean
 	On Error GoTo Erreur
 	bEnLigne = False
 	aCartes = Array()
+	bTelecharger = IsMissing(bCacheSeul)
+	oSFA = CreateUnoService("com.sun.star.ucb.SimpleFileAccess")
 	sCat = sDossier & NOM_CATALOGUE
-	If Telecharger(URL_CATALOGUE, sCat & ".part", sEmpreinte, Nothing, 0) Then
-		aCartes = LireCatalogue(sCat & ".part", sDossier)
-		If UBound(aCartes) >= 0 Then
-			bEnLigne = True
-			RemplacerFichier(sCat & ".part", sCat)
-			Journal("Catalogue en ligne : " & (UBound(aCartes) + 1) & " carte(s)")
-		Else
-			Journal("Catalogue en ligne illisible : le cache est utilisé.")
-			SupprimerFichier(sCat & ".part")
+	If bTelecharger Then
+		Journal("Catalogue : " & UrlCatalogue())
+		If Telecharger(UrlCatalogue(), sCat & ".part", sEmpreinte, Nothing, 0) Then
+			If IsArray(JsonLire(LireTexte(sCat & ".part"))) Then
+				RemplacerFichier(sCat & ".part", sCat)
+			Else
+				Journal("Catalogue illisible : la copie en cache est utilisée")
+				SupprimerFichier(sCat & ".part")
+			End If
 		End If
 	End If
-	If Not bEnLigne Then
-		aCartes = CartesDuCache(LireCatalogue(sCat, sDossier), sDossier)
+	' Copie en cache, ou à défaut catalogue fourni avec l'extension
+	sAgregat = sCat
+	If Not oSFA.exists(sAgregat) Then
+		sAgregat = DossierExtension() & "catalogue.json"
+		Journal("Pas de catalogue en cache : catalogue de l'extension")
+	End If
+	aCartes = LireSources(sAgregat, sDossier, bTelecharger, bEnLigne)
+	If bEnLigne Then
+		Journal("Catalogue en ligne : " & (UBound(aCartes) + 1) & " carte(s)")
+	Else
+		aCartes = CartesDuCache(aCartes, sDossier)
 		Journal("Hors ligne : " & (UBound(aCartes) + 1) & " carte(s) en cache")
 	End If
-	ChargerCatalogue = SansCartesIgnorees(aCartes)
+	' Après CartesDuCache : le fichier en cache d'une carte écartée n'est pas
+	' proposé comme carte locale inconnue
+	ChargerCatalogue = FiltrerCartes(aCartes, ZonesMax())
 	Exit Function
 Erreur:
 	Journal("ERREUR au chargement du catalogue : " & Error$)
 	ChargerCatalogue = Array()
 End Function
 
+' Cartes d'un catalogue agrégé ({"sources": [{id, title, url}…]}) : chaque
+' source est un catalogue de cartes, téléchargé si bTelecharger (copie en
+' cache source-<id>.json sinon). Un catalogue de cartes ({"maps": …}) est
+' aussi accepté directement. bEnLigne : au moins une source à jour en ligne.
+Function LireSources(sUrl As String, sDossier As String, bTelecharger As Boolean, bEnLigne As Boolean) As Variant
+	Dim oRacine As Variant, aSources As Variant, i As Long, k As Long, sId As String, sUrlSource As String
+	Dim sLocal As String, sEmpreinte As String, aCartes As Variant, aRes() As Variant, n As Long
+	Dim oIds As Object
+	On Error GoTo Erreur
+	LireSources = Array()
+	oRacine = JsonLire(LireTexte(sUrl))
+	If IsArray(JsonChamp(oRacine, "maps")) Then
+		LireSources = LireCatalogue(sUrl, sDossier, "")
+		bEnLigne = bTelecharger And (UBound(LireSources) >= 0)
+		Exit Function
+	End If
+	oIds = com.sun.star.container.EnumerableMap.create("string", "boolean")
+	aSources = JsonElements(JsonChamp(oRacine, "sources"))
+	For i = 0 To UBound(aSources)
+		sId = JsonTexte(aSources(i), "id")
+		sUrlSource = JsonTexte(aSources(i), "url")
+		If Not IdSur(sId) Or Not UrlAutorisee(sUrlSource) Then
+			Journal("Catalogue : source " & (i + 1) & " ignorée (identifiant ou URL invalide)")
+		Else
+			sLocal = sDossier & "source-" & sId & ".json"
+			aCartes = Array()
+			If bTelecharger Then
+				If Telecharger(sUrlSource, sLocal & ".part", sEmpreinte, Nothing, 0) Then
+					aCartes = LireCatalogue(sLocal & ".part", sDossier, sId)
+					If UBound(aCartes) >= 0 Then
+						RemplacerFichier(sLocal & ".part", sLocal)
+						bEnLigne = True
+					Else
+						SupprimerFichier(sLocal & ".part")
+					End If
+				End If
+			End If
+			If UBound(aCartes) < 0 Then aCartes = LireCatalogue(sLocal, sDossier, sId)
+			Journal("Source " & sId & " : " & (UBound(aCartes) + 1) & " carte(s)")
+			For k = 0 To UBound(aCartes)
+				If oIds.containsKey(aCartes(k)(C_ID)) Then
+					Journal("  carte '" & aCartes(k)(C_ID) & "' déjà fournie par une autre source : ignorée")
+				Else
+					If aCartes(k)(C_ID) <> "" Then oIds.put(aCartes(k)(C_ID), True)
+					ReDim Preserve aRes(n)
+					aRes(n) = aCartes(k)
+					n = n + 1
+				End If
+			Next k
+		End If
+	Next i
+	If n > 0 Then LireSources = aRes
+	Exit Function
+Erreur:
+	Journal("ERREUR à la lecture des sources du catalogue : " & Error$)
+	If n > 0 Then LireSources = aRes
+End Function
+
+' Retire les cartes de plus de nMax zones (nombre inconnu : carte gardée)
+Function FiltrerCartes(aCartes As Variant, nMax As Long) As Variant
+	Dim aRes() As Variant, n As Long, i As Long
+	FiltrerCartes = Array()
+	For i = 0 To UBound(aCartes)
+		If aCartes(i)(C_OBJETS) > nMax Then
+			Journal("Carte non proposée : " & aCartes(i)(C_TITRE) & " (" & aCartes(i)(C_OBJETS) _
+				& " zones, au plus " & nMax & ")")
+		Else
+			ReDim Preserve aRes(n)
+			aRes(n) = aCartes(i)
+			n = n + 1
+		End If
+	Next i
+	If n > 0 Then FiltrerCartes = aRes
+End Function
+
+' Paramètres de l'extension (configuration de LibreOffice, CalcMap.xcs)
+Function UrlCatalogue() As String
+	UrlCatalogue = Trim(LireConfiguration(NOEUD_PARAMETRES, "Catalogue"))
+	If UrlCatalogue = "" Then UrlCatalogue = CATALOGUE_PAR_DEFAUT
+End Function
+
+Function ZonesMax() As Long
+	Dim s As String
+	s = LireConfiguration(NOEUD_PARAMETRES, "ZonesMax")
+	If Val(s) > 0 Then ZonesMax = CLng(Val(s)) Else ZonesMax = ZONES_MAX_PAR_DEFAUT
+End Function
+
+' URL acceptée pour un catalogue, une carte ou un aperçu : https, ou fichier
+' (partage réseau d'entreprise)
+Function UrlAutorisee(s As String) As Boolean
+	UrlAutorisee = (LCase(Left(s, 8)) = "https://") Or (LCase(Left(s, 8)) = "file:///")
+End Function
+
+' Identifiant de source utilisable dans un nom de fichier
+Function IdSur(s As String) As Boolean
+	Dim k As Integer
+	IdSur = False
+	If s = "" Or Len(s) > 64 Then Exit Function
+	For k = 1 To Len(s)
+		If InStr(1, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-", Mid(s, k, 1), 0) = 0 Then Exit Function
+	Next k
+	IdSur = True
+End Function
+
 ' Lit un maps.json local ; ignore les entrées incomplètes ou suspectes
-Function LireCatalogue(sUrl As String, sDossier As String) As Variant
+Function LireCatalogue(sUrl As String, sDossier As String, sSource As String) As Variant
 	Dim oSFA As Object, oRacine As Variant, aListe As Variant, oCarte As Variant
-	Dim aRes() As Variant, n As Long, i As Long, sFichier As String, sSource As String
+	Dim aRes() As Variant, n As Long, i As Long, sFichier As String, sUrlCarte As String, sApercu As String
 	On Error GoTo Erreur
 	LireCatalogue = Array()
 	oSFA = CreateUnoService("com.sun.star.ucb.SimpleFileAccess")
@@ -1617,12 +1746,15 @@ Function LireCatalogue(sUrl As String, sDossier As String) As Variant
 	For i = 0 To UBound(aListe)
 		oCarte = aListe(i)
 		sFichier = JsonTexte(oCarte, "filename")
-		sSource = JsonTexte(oCarte, "url")
-		If NomFichierSur(sFichier) And LCase(Left(sSource, 8)) = "https://" Then
+		sUrlCarte = JsonTexte(oCarte, "url")
+		sApercu = JsonTexte(oCarte, "preview")
+		If Not UrlAutorisee(sApercu) Then sApercu = ""
+		If NomFichierSur(sFichier) And UrlAutorisee(sUrlCarte) Then
 			ReDim Preserve aRes(n)
 			aRes(n) = NouvelleCarte(JsonTexte(oCarte, "id"), JsonTexteTraduit(oCarte, "title"), _
-				JsonTexteTraduit(oCarte, "description"), sSource, sFichier, JsonNombre(oCarte, "size"), _
-				LCase(JsonTexte(oCarte, "sha256")), oSFA.exists(sDossier & sFichier))
+				JsonTexteTraduit(oCarte, "description"), sUrlCarte, sFichier, JsonNombre(oCarte, "size"), _
+				LCase(JsonTexte(oCarte, "sha256")), oSFA.exists(sDossier & sFichier), _
+				JsonNombre(oCarte, "objects"), sApercu, LCase(JsonTexte(oCarte, "preview_sha256")), sSource)
 			n = n + 1
 		Else
 			Journal("Catalogue : entrée " & (i + 1) & " ignorée (fichier ou URL invalide)")
@@ -1636,22 +1768,6 @@ Erreur:
 End Function
 
 ' Cartes du catalogue présentes en cache, plus les autres .odg du cache
-' Retire les cartes de CARTES_IGNOREES (après CartesDuCache, pour que leur
-' fichier en cache ne soit pas proposé comme une carte locale inconnue)
-Function SansCartesIgnorees(aCartes As Variant) As Variant
-	Dim aRes() As Variant, n As Long, i As Long
-	SansCartesIgnorees = Array()
-	For i = 0 To UBound(aCartes)
-		If aCartes(i)(C_ID) <> "" And InStr(CARTES_IGNOREES, "|" & aCartes(i)(C_ID) & "|") > 0 Then
-			Journal("Carte ignorée : " & aCartes(i)(C_ID))
-		Else
-			ReDim Preserve aRes(n)
-			aRes(n) = aCartes(i)
-			n = n + 1
-		End If
-	Next i
-	If n > 0 Then SansCartesIgnorees = aRes
-End Function
 
 Function CartesDuCache(aCatalogue As Variant, sDossier As String) As Variant
 	Dim oSFA As Object, aRes() As Variant, n As Long, i As Long, k As Long
@@ -1690,9 +1806,64 @@ Erreur:
 	If n > 0 Then CartesDuCache = aRes
 End Function
 
-Function NouvelleCarte(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale) As Variant
-	If sTitre = "" Then sTitre = sFichier
-	NouvelleCarte = Array(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale)
+Function NouvelleCarte(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale, _
+		Optional nObjets, Optional sApercu, Optional sApercuSha, Optional sSource) As Variant
+	Dim v(3) As Variant
+	v(0) = 0 : v(1) = "" : v(2) = "" : v(3) = ""
+	If Not IsMissing(nObjets) Then v(0) = nObjets
+	If Not IsMissing(sApercu) Then v(1) = sApercu
+	If Not IsMissing(sApercuSha) Then v(2) = sApercuSha
+	If Not IsMissing(sSource) Then v(3) = sSource
+	NouvelleCarte = Array(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale, _
+		v(0), v(1), v(2), v(3))
+End Function
+
+' Fichier local de l'aperçu d'une carte (SVG, PNG ou JPEG), téléchargé dans
+' le cache si besoin et vérifié par son empreinte ; "" si indisponible
+Function ApercuLocal(aCarte As Variant) As String
+	Dim oSFA As Object, sUrl As String, sExt As String, sDossier As String, sLocal As String, sEmpreinte As String
+	On Error GoTo Erreur
+	ApercuLocal = ""
+	sUrl = aCarte(C_APERCU)
+	If sUrl = "" Or Not IdSur(aCarte(C_ID)) Then Exit Function
+	sExt = LCase(Right(sUrl, 4))
+	If sExt <> ".svg" And sExt <> ".png" And sExt <> ".jpg" Then Exit Function
+	oSFA = CreateUnoService("com.sun.star.ucb.SimpleFileAccess")
+	sDossier = DossierCartes() & DOSSIER_APERCUS & "/"
+	If Not oSFA.exists(sDossier) Then oSFA.createFolder(sDossier)
+	' Nom lié à l'empreinte : un nouvel aperçu est retéléchargé
+	sLocal = sDossier & aCarte(C_ID) & IIf(aCarte(C_APERCU_SHA) = "", "", "-" & Left(aCarte(C_APERCU_SHA), 12)) & sExt
+	If oSFA.exists(sLocal) Then
+		ApercuLocal = sLocal
+		Exit Function
+	End If
+	If Telecharger(sUrl, sLocal & ".part", sEmpreinte, Nothing, 0) Then
+		If aCarte(C_APERCU_SHA) = "" Or sEmpreinte = "" Or sEmpreinte = aCarte(C_APERCU_SHA) Then
+			RemplacerFichier(sLocal & ".part", sLocal)
+			ApercuLocal = sLocal
+		Else
+			Journal("Aperçu de " & aCarte(C_ID) & " : empreinte incorrecte, ignoré")
+			SupprimerFichier(sLocal & ".part")
+		End If
+	End If
+	Exit Function
+Erreur:
+	Journal("Aperçu de " & aCarte(C_ID) & " indisponible : " & Error$)
+	ApercuLocal = ""
+End Function
+
+' Image lisible (graphique) d'un fichier ; Nothing si impossible
+Function GraphiqueDe(sUrl As String) As Object
+	Dim aSource(0) As New com.sun.star.beans.PropertyValue
+	On Error GoTo Erreur
+	GraphiqueDe = Nothing
+	If sUrl = "" Then Exit Function
+	aSource(0).Name = "URL"
+	aSource(0).Value = sUrl
+	GraphiqueDe = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
+	Exit Function
+Erreur:
+	GraphiqueDe = Nothing
 End Function
 
 ' Nom de fichier simple en .odg (pas de chemin : le catalogue vient du réseau)
@@ -1983,54 +2154,57 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
 	oModele.Width = 330
-	oModele.Height = 348
+	oModele.Height = 380
 	' Carte : fond de carte, description, insertion dans la feuille
-	AjouterCadre(oModele, "grpCarte", 4, 4, 322, 64, Tr("dlg.grp_map"))
-	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 306, 14, _
+	AjouterCadre(oModele, "grpCarte", 4, 4, 322, 96, Tr("dlg.grp_map"))
+	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 218, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLibelles, Not bConfig))
-	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 306, 18, Array("MultiLine"), Array(True))
-	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 52, 306, 12, _
+	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 218, 44, Array("MultiLine"), Array(True))
+	' Aperçu de la carte choisie (image par défaut si aucun)
+	AjouterControle(oModele, "ImageControl", "imgApercu", 236, 14, 84, 70, _
+		Array("ScaleImage", "ScaleMode", "Border"), Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, 1))
+	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 84, 218, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig))
 	' Code : sa colonne
-	AjouterCadre(oModele, "grpCode", 4, 72, 322, 30, Tr("dlg.grp_code"))
-	AjouterListeColonne(oModele, "Code", 84, aColonnes, aOptions(O_COL_CODE))
+	AjouterCadre(oModele, "grpCode", 4, 104, 322, 30, Tr("dlg.grp_code"))
+	AjouterListeColonne(oModele, "Code", 116, aColonnes, aOptions(O_COL_CODE))
 	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage
-	AjouterCadre(oModele, "grpValeurs", 4, 106, 322, 94, Tr("dlg.grp_values"))
-	AjouterListeColonne(oModele, "Valeur", 118, aColonnes, aOptions(O_COL_VALEUR))
-	AjouterControle(oModele, "FixedText", "lblPalette", 12, 136, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
-	AjouterControle(oModele, "ListBox", "lstPalette", 54, 134, 110, 14, _
+	AjouterCadre(oModele, "grpValeurs", 4, 138, 322, 94, Tr("dlg.grp_values"))
+	AjouterListeColonne(oModele, "Valeur", 150, aColonnes, aOptions(O_COL_VALEUR))
+	AjouterControle(oModele, "FixedText", "lblPalette", 12, 168, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
+	AjouterControle(oModele, "ListBox", "lstPalette", 54, 166, 110, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 16, aNomsPal))
 	For i = 0 To NB_NUANCES_APERCU - 1
-		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 134, 10, 14, Array("Border"), Array(2))
+		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 166, 10, 14, Array("Border"), Array(2))
 	Next i
-	AjouterControle(oModele, "Button", "btnClasses", 258, 134, 60, 14, _
+	AjouterControle(oModele, "Button", "btnClasses", 258, 166, 60, 14, _
 		Array("Label", "PushButtonType", "HelpText"), Array(Tr("dlg.classes"), 0, Tr("dlg.classes_help")))
-	AjouterControle(oModele, "FixedText", "lblClasses", 54, 150, 264, 10, _
+	AjouterControle(oModele, "FixedText", "lblClasses", 54, 182, 264, 10, _
 		Array("Label", "TextColor"), Array("", RGB(96, 96, 96)))
 	sClassesDialogue = aOptions(O_CLASSES)
-	AjouterLigneTexte(oModele, "Valeurs", 165, Tr("dlg.show_values"), aOptions(O_VALEURS), _
+	AjouterLigneTexte(oModele, "Valeurs", 197, Tr("dlg.show_values"), aOptions(O_VALEURS), _
 		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS), _
 		aOptions(O_CONTOUR_VALEURS) <> LISIBILITE_AUCUNE)
 	' Libellés : colonne, affichage
-	AjouterCadre(oModele, "grpLibelles", 4, 204, 322, 62, Tr("dlg.grp_labels"))
-	AjouterListeColonne(oModele, "Libelle", 216, aColonnes, aOptions(O_COL_LIBELLE))
-	AjouterLigneTexte(oModele, "Libelles", 233, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+	AjouterCadre(oModele, "grpLibelles", 4, 236, 322, 62, Tr("dlg.grp_labels"))
+	AjouterListeColonne(oModele, "Libelle", 248, aColonnes, aOptions(O_COL_LIBELLE))
+	AjouterLigneTexte(oModele, "Libelles", 265, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
 		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES), _
 		aOptions(O_CONTOUR_LIBELLES) <> LISIBILITE_AUCUNE)
 	' Légende
-	AjouterCadre(oModele, "grpLegende", 4, 270, 322, 30, Tr("dlg.grp_legend"))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 283, 150, 12, _
+	AjouterCadre(oModele, "grpLegende", 4, 302, 322, 30, Tr("dlg.grp_legend"))
+	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 315, 150, 12, _
 		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 168, 283, 150, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 168, 315, 150, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
 		aOptions(O_LEGENDE)))
-	AjouterControle(oModele, "FixedText", "lblEtat", 6, 304, 318, 20, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 6, 336, 318, 20, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnAutre", 6, 328, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 360, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "Button", "btnOk", 218, 328, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 218, 360, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 274, 328, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 274, 360, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -2239,9 +2413,21 @@ Sub AfficherDescription(ByVal i As Long)
 	If i < 0 Or i > UBound(aCartesDialogue) Then Exit Sub
 	aCarte = aCartesDialogue(i)
 	s = aCarte(C_DESCRIPTION) & Chr(10) & aCarte(C_FICHIER)
+	If aCarte(C_OBJETS) > 0 Then s = s & " - " & Tr("dlg.zones", aCarte(C_OBJETS))
 	If aCarte(C_TAILLE) > 0 Then s = s & " - " & TailleLisible(aCarte(C_TAILLE))
 	s = s & " - " & IIf(aCarte(C_LOCALE), Tr("dlg.downloaded"), Tr("dlg.will_download"))
 	oDialogue.getControl("lblDescription").getModel().Label = s
+	AfficherApercu(aCarte)
+End Sub
+
+' Aperçu d'une carte dans le dialogue ; image « pas d'aperçu » si la carte
+' n'en a pas ou s'il est illisible
+Sub AfficherApercu(aCarte As Variant)
+	Dim oGraphique As Object
+	On Error Resume Next
+	oGraphique = GraphiqueDe(ApercuLocal(aCarte))
+	If IsNull(oGraphique) Then oGraphique = GraphiqueDe(DossierExtension() & "icons/nopreview.svg")
+	oDialogue.getControl("imgApercu").getModel().Graphic = oGraphique
 End Sub
 
 ' Aperçu de la palette : une case par classe, ou pour un dégradé continu
@@ -3305,6 +3491,21 @@ Erreur:
 	LienDeSelection = ""
 End Function
 
+' Carte d'un lien pour le dialogue de configuration : celle du catalogue en
+' cache (titre, description, aperçu) si son fichier y figure
+Function CarteDuLien(sUrlCarte As String) As Variant
+	Dim aParties As Variant, sFichier As String, aCatalogue As Variant, b As Boolean, i As Long
+	aParties = Split(sUrlCarte, "/")
+	sFichier = aParties(UBound(aParties))
+	CarteDuLien = NouvelleCarte("", NomFichier(sUrlCarte), "", sUrlCarte, sFichier, 0, "", True)
+	On Error GoTo Fin
+	aCatalogue = ChargerCatalogue(DossierCartes(), b, True)
+	For i = 0 To UBound(aCatalogue)
+		If aCatalogue(i)(C_FICHIER) = sFichier Then CarteDuLien = aCatalogue(i)
+	Next i
+Fin:
+End Function
+
 ' Menu « Configuration de la carte… » : rouvre le dialogue pour la carte
 ' sélectionnée (palette, valeurs, libellés), puis la recolore
 Sub ConfigurerCarte()
@@ -3330,8 +3531,7 @@ Sub ConfigurerCarte()
 	aColonnes = NomsColonnes(oPlage)
 	aDonneesDialogue = oPlage.getDataArray()
 	aPalettes = ChargerPalettes()
-	aCartes = Array(NouvelleCarte("", NomFichier(aChamps(3)), "", aChamps(3), NomFichier(aChamps(3)), _
-		0, "", True))
+	aCartes = Array(CarteDuLien(aChamps(3)))
 	bInserer = True
 	nRes = DialogueCartes(aCartes, aPalettes, "", "", aChamps(2), iChoix, iPalette, bInserer, aOptions, _
 		aColonnes, FenetreParente(oDocCalc), True)

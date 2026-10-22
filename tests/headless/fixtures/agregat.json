@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "title": "Catalogue de test",
+  "sources": [
+    {"id": "france-odg", "title": "France", "url": "@TESTS@/source-france.json"},
+    {"id": "entreprise", "title": "Entreprise", "url": "@TESTS@/source-entreprise.json"},
+    {"id": "../mauvais", "title": "Identifiant dangereux", "url": "@TESTS@/source-france.json"},
+    {"id": "http", "title": "URL non chiffrée", "url": "http://exemple.fr/maps.json"}
+  ]
+}

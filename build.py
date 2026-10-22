@@ -32,7 +32,9 @@ FICHIERS = [
     "CalcMap/dialog.xlb",
     "icons/carte_16.png",
     "icons/carte_26.png",
+    "icons/nopreview.svg",
     "palettes.json",
+    "CalcMap.xcs",
 ]
 # Dossiers inclus en entier : ajouter une langue = ajouter un fichier
 DOSSIERS = ["i18n", "description"]
@@ -58,6 +60,8 @@ def main():
                   for p in sorted((SRC / d).iterdir()) if p.is_file()]
         for f in FICHIERS + extras + ["CalcMap/CalcMap.xba"]:
             z.write(SRC / f, f)
+        # Catalogue agrégé du projet : secours si celui configuré est injoignable
+        z.write(RACINE / "catalogue" / "catalogue.json", "catalogue.json")
     print(f"{sortie.relative_to(RACINE)} (version {version})")
 
 

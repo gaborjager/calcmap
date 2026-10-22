@@ -378,3 +378,88 @@ Function CopieT(oG As Object) As String
 		End If
 	Next i
 End Function
+
+' ---------------------------------------------------------------- aperçus
+' Une image SVG s'affiche-t-elle dans un contrôle image de dialogue ?
+Sub TestApercuSvg()
+	Dim oModele As Object, oDlg As Object, oImg As Object, oGraphique As Object
+	Dim aSource(0) As New com.sun.star.beans.PropertyValue
+	OuvrirJournal()
+	On Error GoTo ErrT
+	aSource(0).Name = "URL" : aSource(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/../essai.svg")
+	oGraphique = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
+	Journal("TEST svg charge : " & Not IsNull(oGraphique) & " ; type " & oGraphique.GraphicType & " ; taille " & oGraphique.Size100thMM.Width & "x" & oGraphique.Size100thMM.Height)
+	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
+	oModele.Width = 200 : oModele.Height = 150
+	AjouterControle(oModele, "ImageControl", "img", 10, 10, 100, 80, Array("ScaleImage", "ScaleMode", "ImageURL"), _
+		Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, aSource(0).Value))
+	oDlg = CreateUnoService("com.sun.star.awt.UnoControlDialog")
+	oDlg.setModel(oModele)
+	oDlg.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), Nothing)
+	Journal("TEST controle image : graphique present=" & Not IsNull(oDlg.getControl("img").getModel().Graphic))
+	oDlg.dispose()
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- catalogue
+Sub ParametreT(sNom As String, v As Variant)
+	Dim oAcces As Object, aArgs(0) As New com.sun.star.beans.PropertyValue
+	aArgs(0).Name = "nodepath" : aArgs(0).Value = NOEUD_PARAMETRES
+	oAcces = CreateUnoService("com.sun.star.configuration.ConfigurationProvider") _
+		.createInstanceWithArguments("com.sun.star.configuration.ConfigurationUpdateAccess", aArgs())
+	oAcces.setPropertyValue(sNom, v)
+	oAcces.commitChanges()
+End Sub
+
+Function ListeT(aCartes As Variant) As String
+	Dim i As Long, s As String
+	For i = 0 To UBound(aCartes)
+		s = s & aCartes(i)(C_ID) & "[" & aCartes(i)(C_SOURCE) & ", " & aCartes(i)(C_OBJETS) & " zones" _
+			& IIf(aCartes(i)(C_APERCU) <> "", ", apercu", "") & "] "
+	Next i
+	ListeT = (UBound(aCartes) + 1) & " carte(s) : " & s
+End Function
+
+Sub TestCatalogue()
+	Dim sTests As String, sFixtures As String, sFrance As String, s As String, aCartes As Variant, b As Boolean, i As Long
+	OuvrirJournal()
+	On Error GoTo ErrT
+	ChargerTextes()
+	Journal("TEST parametres par defaut : catalogue=" & UrlCatalogue() & " ; zones max=" & ZonesMax())
+	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
+	sFixtures = ConvertToURL(Environ("CALCMAP_FIXTURES"))
+	sFrance = ConvertToURL("/home/gabor/github/france-odg/output")
+	' Source france-odg : le catalogue du projet, aperçus en fichiers locaux
+	s = Replace(LireTexte(sFrance & "/maps.json"), "https://raw.githubusercontent.com/gaborjager/france-odg/main/output", sFrance)
+	EcrireTexte(sTests & "/source-france.json", s)
+	EcrireTexte(sTests & "/source-entreprise.json", Replace(Replace(LireTexte(sFixtures & "/source-entreprise.json"), _
+		"@TESTS@", sTests), "@FRANCEODG@", sFrance))
+	EcrireTexte(sTests & "/agregat.json", Replace(LireTexte(sFixtures & "/agregat.json"), "@TESTS@", sTests))
+	ParametreT("Catalogue", sTests & "/agregat.json")
+	ParametreT("ZonesMax", 200)
+	aCartes = ChargerCatalogue(DossierCartes(), b)
+	Journal("TEST max 200 : en ligne=" & b & " ; " & ListeT(aCartes))
+	ParametreT("ZonesMax", 3000)
+	aCartes = ChargerCatalogue(DossierCartes(), b)
+	Journal("TEST max 3000 : " & ListeT(aCartes))
+	For i = 0 To UBound(aCartes)
+		If aCartes(i)(C_ID) = "departements" Or aCartes(i)(C_ID) = "secteurs" Then
+			s = ApercuLocal(aCartes(i))
+			Journal("TEST apercu " & aCartes(i)(C_ID) & " : '" & s & "' lisible=" & Not IsNull(GraphiqueDe(s)))
+		End If
+	Next i
+	Journal("TEST image par defaut lisible : " & Not IsNull(GraphiqueDe(DossierExtension() & "icons/nopreview.svg")))
+	' Catalogue injoignable : copie en cache
+	ParametreT("Catalogue", sTests & "/absent.json")
+	aCartes = ChargerCatalogue(DossierCartes(), b)
+	Journal("TEST catalogue injoignable : en ligne=" & b & " ; " & ListeT(aCartes))
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub

@@ -26,6 +26,7 @@ unopkg add -f "-env:UserInstallation=file://$TRAVAIL/profil" "$TRAVAIL/copie/dis
 cp "$CLASSEUR" "$TRAVAIL/classeur.ods"
 rm -f "$TRAVAIL"/.~lock*
 export CALCMAP_TESTS="$TRAVAIL"
+export CALCMAP_FIXTURES="$ICI/fixtures"
 timeout 300 python3 "$ICI/pilote.py" "$TRAVAIL/profil" "$TRAVAIL/classeur.ods" "$MACRO" "$TRAVAIL/carte.png" "$PORT" \
 	> /dev/null 2>&1 || true
 grep -E "TEST|ERREUR" "$TRAVAIL/profil/user/calcmap.log" | cut -c22-
