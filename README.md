@@ -27,9 +27,10 @@ code INSEE dans son nom.
 8. Cocher **Afficher la légende**, **avec les valeurs** (bornes de chaque classe)
    ou sans.
 
-> Seules les cartes d'au plus **200 zones** sont proposées (paramètre `ZonesMax`,
-> voir *Paramètres*) : avec le catalogue actuel, les régions et les départements.
-> Les cantons (2 306 zones) et les communes (35 191) sont écartés.
+> Seules les cartes d'au plus **300 zones** sont proposées (paramètre `ZonesMax`,
+> voir *Paramètres*) : avec le catalogue actuel, les régions et les départements
+> (et à terme une carte des pays du monde). Les cantons (2 306 zones) et les
+> communes (35 191) sont écartés.
 
 Le dialogue est organisé en cadres : **Carte** (fond de carte, son aperçu,
 insertion dans la feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
@@ -101,7 +102,8 @@ une case « Sans donnée » si des zones n'ont pas de valeur.
 
 ### Configuration d'une carte insérée
 
-**Clic droit sur la carte → Configuration de la carte…** rouvre le dialogue pour
+**Clic droit sur la carte → Configuration de la carte…**, ou l'**icône globe**
+quand la carte (ou une de ses zones) est sélectionnée, rouvre le dialogue pour
 cette carte : palette, colonnes, valeurs, libellés, légende. La carte est
 recoloriée dès la validation, et ces choix (sauf les colonnes, propres à chaque
 tableau) servent aussi de point de départ pour la carte suivante. Le fond de carte ne peut pas être changé (insérer une nouvelle carte).
@@ -262,29 +264,48 @@ Deux paramètres, dans la configuration de LibreOffice
 | Paramètre | Par défaut | Rôle |
 |---|---|---|
 | `Catalogue` | `https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json` | catalogue agrégé (ou catalogue de cartes) |
-| `ZonesMax` | `200` | cartes proposées : au plus ce nombre de zones |
+| `ZonesMax` | `300` | cartes proposées : au plus ce nombre de zones |
 
 - **Un utilisateur** : *Outils → Options → LibreOffice → Avancé → Ouvrir la
   configuration avancée*, chercher `CalcMap`.
 - **Une entreprise** fournit son propre catalogue (ses sources : france-odg, ses
-  cartes internes…) et le déploie avec un fichier `.xcu`, par exemple dans une
-  petite extension ou dans la configuration partagée de LibreOffice
-  (`share/registry/`) :
+  cartes internes…) et l'impose sur les postes, voir *Déploiement*.
 
-  ```xml
-  <?xml version="1.0" encoding="UTF-8"?>
-  <oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
-      xmlns:xs="http://www.w3.org/2001/XMLSchema"
-      oor:name="CalcMap" oor:package="fr.github.gaborjager">
-   <node oor:name="Parametres">
-    <prop oor:name="Catalogue" oor:finalized="true">
-     <value>https://intranet.exemple.fr/cartes/catalogue.json</value>
-    </prop>
-   </node>
-  </oor:component-data>
-  ```
+### Déploiement en entreprise
 
-  `oor:finalized="true"` empêche l'utilisateur de le modifier.
+**Extension de configuration (recommandé, tous systèmes).** Le script
+`deploiement/creer_configuration.py` produit une petite extension qui ne contient
+que les paramètres :
+
+```bash
+python3 deploiement/creer_configuration.py \
+    --catalogue https://intranet.exemple.fr/cartes/catalogue.json \
+    --zones-max 300 --verrouiller
+# -> dist/CalcMap-configuration.oxt
+```
+
+L'administrateur l'installe pour tous les utilisateurs du poste, après CalcMap,
+LibreOffice fermé :
+
+```
+unopkg add --shared CalcMap.oxt
+unopkg add --shared CalcMap-configuration.oxt
+```
+
+Avec `--verrouiller`, les utilisateurs ne peuvent plus modifier ces paramètres ;
+sans, ce sont seulement les valeurs par défaut du poste. Pour changer de
+catalogue plus tard, il suffit de publier un nouveau `catalogue.json` à la même
+adresse : l'extension de configuration ne change pas.
+
+**Autres possibilités** (mécanismes standard de LibreOffice, non testés avec
+CalcMap) :
+
+- *Windows, stratégies de groupe* : valeurs de registre sous
+  `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\Catalogue`
+  (et `...\ZonesMax`) : `Value` (REG_SZ) pour la valeur, `Final` (REG_DWORD = 1)
+  pour la verrouiller ;
+- *installation de LibreOffice* : le même contenu que `CalcMapConfiguration.xcu`
+  de l'extension, dans la configuration partagée de l'installation.
 
 ### Aperçu
 
@@ -411,6 +432,8 @@ l'extension et un profil jetable, et affiche les lignes `TEST` du journal :
 tests/headless/lancer.sh TestTextes            # textes des zones, légende
 tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, flèches, saisie)
 tests/headless/lancer.sh TestCatalogue         # catalogue agrégé, filtre, aperçus (fichiers locaux)
+tests/headless/lancer.sh TestIconeSurCarte     # icône sur une carte sélectionnée : configuration
+tests/headless/lancer.sh TestParametres "" dist/CalcMap-configuration.oxt   # paramètres d'une extension de configuration
 ```
 
 Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
@@ -423,6 +446,7 @@ calcmap/
 ├── build.py                    construit dist/CalcMap.oxt
 ├── dist/CalcMap.oxt            extension prête à installer
 ├── catalogue/catalogue.json    catalogue agrégé (sources de cartes), aussi inclus dans l'extension
+├── deploiement/                extension de configuration pour un déploiement (catalogue, zones max)
 ├── src/
 │   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
 │   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)

@@ -5,3 +5,6 @@
 src/CalcMap/CalcMap.xba
 
 __pycache__/
+
+# Extensions de configuration propres à un déploiement
+dist/CalcMap-configuration.oxt

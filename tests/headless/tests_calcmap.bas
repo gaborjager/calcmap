@@ -463,3 +463,45 @@ ErrT:
 	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
 	Resume Next
 End Sub
+
+' ---------------------------------------------------------------- paramètres
+' Paramètres lus (avec une extension de configuration éventuelle), puis
+' tentative de modification par l'utilisateur
+Sub TestParametres()
+	OuvrirJournal()
+	Journal("TEST parametres lus : catalogue=" & UrlCatalogue() & " ; zones max=" & ZonesMax())
+	On Error GoTo Refus
+	ParametreT("ZonesMax", 7)
+	Journal("TEST modification par l'utilisateur acceptee : zones max=" & ZonesMax())
+	FermerJournal()
+	Exit Sub
+Refus:
+	Journal("TEST modification par l'utilisateur refusee (" & Error$ & ") : zones max=" & ZonesMax())
+	FermerJournal()
+End Sub
+
+' ---------------------------------------------------------------- icône sur une carte
+' Carte sélectionnée (ou une de ses zones) : l'icône ouvre sa configuration
+' (le dialogue ne s'affiche pas sans écran) et n'insère pas de nouvelle carte
+Sub TestIconeSurCarte()
+	Dim oCalc As Object, oFeuille As Object, aOpt As Variant, sLien As String, oG As Object, n As Long
+	OuvrirJournal()
+	On Error GoTo ErrT
+	ChargerTextes()
+	oCalc = DocCalcT()
+	oFeuille = oCalc.getSheets().getByIndex(0)
+	aOpt = OptionsParDefaut()
+	sLien = InsererCarteT(aOpt, "bleus")
+	oG = oFeuille.getDrawPage().getByIndex(0)
+	FermerJournal()
+	oCalc.getCurrentController().select(oG)
+	CalcMap()
+	n = oFeuille.getDrawPage().getCount()
+	oCalc.getCurrentController().select(oG.getByIndex(10))
+	CalcMap()
+	JournalAjout("TEST apres l'icone sur la carte puis sur une zone : " & oFeuille.getDrawPage().getCount() & " forme(s) dans la feuille (avant : " & n & ")")
+	Exit Sub
+ErrT:
+	JournalAjout("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub

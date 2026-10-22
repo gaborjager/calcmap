@@ -13,9 +13,9 @@
    <prop oor:name="Catalogue" oor:type="xs:string">
     <value>https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json</value>
    </prop>
-   <!-- Cartes proposées : au plus ce nombre de zones -->
+   <!-- Cartes proposées : au plus ce nombre de zones (300 : carte des pays du monde) -->
    <prop oor:name="ZonesMax" oor:type="xs:int">
-    <value>200</value>
+    <value>300</value>
    </prop>
   </group>
  </component>

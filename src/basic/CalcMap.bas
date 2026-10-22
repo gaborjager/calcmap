@@ -15,9 +15,9 @@ REM  Fonds de carte : le catalogue agrégé (paramètre Catalogue, par défaut
 REM  catalogue/catalogue.json du projet) liste des sources, chacune un
 REM  catalogue de cartes au format de france-odg (maps.json) ; il est lu à
 REM  chaque exécution. Seules les cartes d'au plus ZonesMax zones (paramètre,
-REM  200 par défaut) sont proposées. Les cartes sont téléchargées dans le profil LibreOffice
-REM  ($(user)/calcmap/) et retéléchargées seulement si leur empreinte
-REM  SHA-256 diffère de celle du catalogue. Sans réseau, seules les cartes
+REM  300 par défaut) sont proposées. Les cartes sont téléchargées dans le
+REM  profil LibreOffice ($(user)/calcmap/) et retéléchargées seulement si leur
+REM  empreinte SHA-256 diffère de celle du catalogue. Sans réseau, seules les cartes
 REM  déjà téléchargées sont proposées.
 REM
 REM  Insertion dans Calc (option du dialogue) : la carte coloriée est placée
@@ -71,7 +71,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.13.0"
+Const VERSION = "0.14.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -80,7 +80,7 @@ Const NOM_JOURNAL = "calcmap.log"
 ' secours si la configuration est illisible
 Const NOEUD_PARAMETRES = "/fr.github.gaborjager.CalcMap/Parametres"
 Const CATALOGUE_PAR_DEFAUT = "https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json"
-Const ZONES_MAX_PAR_DEFAUT = 200
+Const ZONES_MAX_PAR_DEFAUT = 300
 Const DOSSIER_CARTES = "calcmap"         ' cache des fonds de carte, dans le profil
 Const ANCIEN_DOSSIER = "coloriercarte"   ' cache de l'ancienne extension ColorierCarte (repris)
 Const NOM_CATALOGUE = "catalogue.json"   ' copie locale du catalogue agrégé (mode hors ligne)
@@ -231,6 +231,15 @@ Sub CalcMap()
 	If Not oDocCalc.supportsService("com.sun.star.sheet.SpreadsheetDocument") Then
 		Avertir(Tr("msg.use_from_calc"))
 		GoTo Fin
+	End If
+
+	' Carte liée sélectionnée (ou une de ses zones) : configuration de cette
+	' carte plutôt qu'une nouvelle carte
+	If LienDeSelection(oDocCalc, oDocCalc.getCurrentController().getSelection()) <> "" Then
+		Journal("Carte liée sélectionnée : configuration de cette carte")
+		FermerJournal()
+		ConfigurerCarte()
+		Exit Sub
 	End If
 
 	oSelection = PlageSelectionnee(oDocCalc.getCurrentSelection())
