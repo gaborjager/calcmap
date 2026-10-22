@@ -68,7 +68,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.11.0"
+Const VERSION = "0.12.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -130,10 +130,11 @@ Const O_COL_LIBELLE = 10
 Const O_LEGENDE = 11
 Const O_LEGENDE_VALEURS = 12
 Const O_CLASSES = 13                ' classes personnalisées (TexteClasses) ; "" : répartition linéaire
-Const O_LISIBILITE = 14             ' textes : LISIBILITE_CONTOUR ou LISIBILITE_AUCUNE
-Const NB_OPTIONS = 15
-Const NOMS_OPTIONS = "valeurs|taille_valeurs|libelles|taille_libelles|police_valeurs|style_valeurs|police_libelles|style_libelles|col_code|col_valeur|col_libelle|legende|legende_valeurs|classes|lisibilite"
-Const TYPES_OPTIONS = "bnbnsssscccbbks"  ' b : oui/non, n : taille, s : texte, c : colonne, k : classes
+Const O_CONTOUR_VALEURS = 14        ' contour des valeurs : LISIBILITE_CONTOUR ou LISIBILITE_AUCUNE
+Const O_CONTOUR_LIBELLES = 15       ' contour des libellés : idem
+Const NB_OPTIONS = 16
+Const NOMS_OPTIONS = "valeurs|taille_valeurs|libelles|taille_libelles|police_valeurs|style_valeurs|police_libelles|style_libelles|col_code|col_valeur|col_libelle|legende|legende_valeurs|classes|contour_valeurs|contour_libelles"
+Const TYPES_OPTIONS = "bnbnsssscccbbkss" ' b : oui/non, n : taille, s : texte, c : colonne, k : classes
 Const LISIBILITE_AUCUNE = "aucune"
 Const LISIBILITE_CONTOUR = "contour"      ' contour de la couleur opposée (copies décalées du texte)
 ' Les options c et k, propres à chaque tableau, sont gardées dans le lien
@@ -529,17 +530,23 @@ End Sub
 Sub TexteZone(oDoc As Object, oConteneur As Object, oZone As Object, sLibelle As String, dTailleLib As Double, _
 		sValeur As String, dTailleVal As Double, aOptions As Variant, nFond As Long)
 	Dim aTextes(1) As String, aTailles(1) As Double, aPolices(1) As String, aStyles(1) As String
+	Dim aContours(1) As Boolean, bContour As Boolean, aCopies(1) As String
 	Dim n As Integer, k As Integer, p As Variant, t As Variant, dCx As Double, dCy As Double
 	Dim nCouleur As Long, dEcart As Double, aDx As Variant, aDy As Variant, oTexte As Object
 	On Error GoTo Erreur
+	' Toute valeur autre que « aucune » (dont l'ancienne « etiquette ») : contour
 	If sLibelle <> "" Then
 		aTextes(n) = sLibelle : aTailles(n) = dTailleLib
 		aPolices(n) = aOptions(O_POLICE_LIBELLES) : aStyles(n) = aOptions(O_STYLE_LIBELLES)
+		aContours(n) = (aOptions(O_CONTOUR_LIBELLES) <> LISIBILITE_AUCUNE)
+		bContour = bContour Or aContours(n)
 		n = n + 1
 	End If
 	If sValeur <> "" Then
 		aTextes(n) = sValeur : aTailles(n) = dTailleVal
 		aPolices(n) = aOptions(O_POLICE_VALEURS) : aStyles(n) = aOptions(O_STYLE_VALEURS)
+		aContours(n) = (aOptions(O_CONTOUR_VALEURS) <> LISIBILITE_AUCUNE)
+		bContour = bContour Or aContours(n)
 		n = n + 1
 	End If
 	If n = 0 Then Exit Sub
@@ -549,15 +556,21 @@ Sub TexteZone(oDoc As Object, oConteneur As Object, oZone As Object, sLibelle As
 	dCx = p.X + t.Width / 2
 	dCy = p.Y + t.Height / 2
 	nCouleur = CouleurTexte(nFond)
-	' Toute valeur autre que « aucune » (dont l'ancienne « etiquette ») : contour
-	If aOptions(O_LISIBILITE) <> LISIBILITE_AUCUNE Then
+	If bContour Then
 		' Contour : 8 copies du texte, de la couleur opposée, décalées tout
-		' autour (environ 1/14 de la hauteur du texte), sous le texte
+		' autour (environ 1/14 de la hauteur du texte), sous le texte. Dans les
+		' copies, un texte sans contour est remplacé par une espace de même
+		' police et taille : hauteur de ligne et centrage inchangés (un texte
+		' transparent à 100 % est mal dessiné par LibreOffice 25.2)
+		For k = 0 To n - 1
+			aCopies(k) = IIf(aContours(k), aTextes(k), " ")
+		Next k
+		ReDim Preserve aCopies(n - 1) As String
 		dEcart = IIf(dTailleVal > dTailleLib, dTailleVal, dTailleLib) * 2.5
 		aDx = Array(-1, 0, 1, -1, 1, -1, 0, 1)
 		aDy = Array(-1, -1, -1, 0, 0, 1, 1, 1)
 		For k = 0 To 7
-			oTexte = FormeTexteZone(oDoc, oConteneur, oZone.Name, aTextes, aTailles, aPolices, aStyles, _
+			oTexte = FormeTexteZone(oDoc, oConteneur, oZone.Name, aCopies, aTailles, aPolices, aStyles, _
 				IIf(nCouleur = 0, RGB(255, 255, 255), 0), dCx + aDx(k) * dEcart, dCy + aDy(k) * dEcart)
 		Next k
 	End If
@@ -667,7 +680,7 @@ End Function
 ' Options de texte (voir O_*), tailles ramenées dans les bornes
 Function OptionsParDefaut() As Variant
 	OptionsParDefaut = Array(False, TAILLE_TEXTE, False, TAILLE_TEXTE, POLICE_TEXTE, "", POLICE_TEXTE, "", _
-		0, 1, 2, False, True, "", LISIBILITE_CONTOUR)
+		0, 1, 2, False, True, "", LISIBILITE_CONTOUR, LISIBILITE_CONTOUR)
 End Function
 
 ' Option gardée dans les préférences (ni colonnes ni classes, propres à
@@ -1970,7 +1983,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
 	oModele.Width = 330
-	oModele.Height = 334
+	oModele.Height = 348
 	' Carte : fond de carte, description, insertion dans la feuille
 	AjouterCadre(oModele, "grpCarte", 4, 4, 322, 64, Tr("dlg.grp_map"))
 	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 306, 14, _
@@ -1982,7 +1995,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	AjouterCadre(oModele, "grpCode", 4, 72, 322, 30, Tr("dlg.grp_code"))
 	AjouterListeColonne(oModele, "Code", 84, aColonnes, aOptions(O_COL_CODE))
 	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage
-	AjouterCadre(oModele, "grpValeurs", 4, 106, 322, 80, Tr("dlg.grp_values"))
+	AjouterCadre(oModele, "grpValeurs", 4, 106, 322, 94, Tr("dlg.grp_values"))
 	AjouterListeColonne(oModele, "Valeur", 118, aColonnes, aOptions(O_COL_VALEUR))
 	AjouterControle(oModele, "FixedText", "lblPalette", 12, 136, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
 	AjouterControle(oModele, "ListBox", "lstPalette", 54, 134, 110, 14, _
@@ -1996,30 +2009,28 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 		Array("Label", "TextColor"), Array("", RGB(96, 96, 96)))
 	sClassesDialogue = aOptions(O_CLASSES)
 	AjouterLigneTexte(oModele, "Valeurs", 165, Tr("dlg.show_values"), aOptions(O_VALEURS), _
-		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS))
+		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS), _
+		aOptions(O_CONTOUR_VALEURS) <> LISIBILITE_AUCUNE)
 	' Libellés : colonne, affichage
-	AjouterCadre(oModele, "grpLibelles", 4, 190, 322, 46, Tr("dlg.grp_labels"))
-	AjouterListeColonne(oModele, "Libelle", 202, aColonnes, aOptions(O_COL_LIBELLE))
-	AjouterLigneTexte(oModele, "Libelles", 219, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
-		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES))
-	' Textes sur la carte et légende, côte à côte
-	AjouterCadre(oModele, "grpTextes", 4, 240, 160, 44, Tr("dlg.grp_text"))
-	AjouterControle(oModele, "CheckBox", "chkContour", 12, 253, 148, 24, _
-		Array("Label", "State", "Enabled", "MultiLine"), Array(Tr("dlg.outline"), _
-		IIf(aOptions(O_LISIBILITE) = LISIBILITE_AUCUNE, 0, 1), aOptions(O_VALEURS) Or aOptions(O_LIBELLES), True))
-	AjouterCadre(oModele, "grpLegende", 168, 240, 158, 44, Tr("dlg.grp_legend"))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 176, 253, 146, 12, _
+	AjouterCadre(oModele, "grpLibelles", 4, 204, 322, 62, Tr("dlg.grp_labels"))
+	AjouterListeColonne(oModele, "Libelle", 216, aColonnes, aOptions(O_COL_LIBELLE))
+	AjouterLigneTexte(oModele, "Libelles", 233, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES), _
+		aOptions(O_CONTOUR_LIBELLES) <> LISIBILITE_AUCUNE)
+	' Légende
+	AjouterCadre(oModele, "grpLegende", 4, 270, 322, 30, Tr("dlg.grp_legend"))
+	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 283, 150, 12, _
 		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 188, 267, 134, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 168, 283, 150, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
 		aOptions(O_LEGENDE)))
-	AjouterControle(oModele, "FixedText", "lblEtat", 6, 290, 318, 20, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 6, 304, 318, 20, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnAutre", 6, 314, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 328, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "Button", "btnOk", 218, 314, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 218, 328, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 274, 314, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 274, 328, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -2058,12 +2069,12 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	aOptions(O_COL_CODE) = ColonneChoisie("Code", aOptions(O_COL_CODE))
 	aOptions(O_COL_VALEUR) = ColonneChoisie("Valeur", aOptions(O_COL_VALEUR))
 	aOptions(O_COL_LIBELLE) = ColonneChoisie("Libelle", aOptions(O_COL_LIBELLE))
-	LireLigneTexte("Valeurs", aOptions, O_VALEURS, O_TAILLE_VALEURS, O_POLICE_VALEURS, O_STYLE_VALEURS)
-	LireLigneTexte("Libelles", aOptions, O_LIBELLES, O_TAILLE_LIBELLES, O_POLICE_LIBELLES, O_STYLE_LIBELLES)
+	LireLigneTexte("Valeurs", aOptions, O_VALEURS, O_TAILLE_VALEURS, O_POLICE_VALEURS, O_STYLE_VALEURS, O_CONTOUR_VALEURS)
+	LireLigneTexte("Libelles", aOptions, O_LIBELLES, O_TAILLE_LIBELLES, O_POLICE_LIBELLES, O_STYLE_LIBELLES, _
+		O_CONTOUR_LIBELLES)
 	aOptions(O_LEGENDE) = (oDialogue.getControl("chkLegende").getState() = 1)
 	aOptions(O_LEGENDE_VALEURS) = (oDialogue.getControl("chkLegendeValeurs").getState() = 1)
 	aOptions(O_CLASSES) = sClassesDialogue
-	aOptions(O_LISIBILITE) = IIf(oDialogue.getControl("chkContour").getState() = 1, LISIBILITE_CONTOUR, LISIBILITE_AUCUNE)
 	oDialogue.getControl("btnClasses").removeActionListener(oEcouteurClasses)
 	For Each sCase In Array("chkValeurs", "chkLibelles", "chkLegende")
 		oDialogue.getControl(sCase).removeItemListener(oEcouteurCases)
@@ -2084,11 +2095,13 @@ Erreur:
 End Function
 
 ' Ligne de texte du dialogue, comme la barre de formatage : case à cocher,
-' police et taille (listes où l'on peut saisir), boutons G I S, grisés tant
-' que la case n'est pas cochée : chk<sSuffixe>, cboPolice<sSuffixe>,
-' cboTaille<sSuffixe>, btnGras<sSuffixe>…
+' police et taille (listes où l'on peut saisir), boutons G I S, et dessous
+' la case du contour, grisés tant que la case n'est pas cochée :
+' chk<sSuffixe>, cboPolice<sSuffixe>, cboTaille<sSuffixe>, btnGras<sSuffixe>,
+' chkContour<sSuffixe>…
 Sub AjouterLigneTexte(oModele As Object, sSuffixe As String, nY As Long, sLibelle As String, _
-		bCoche As Boolean, nTaille As Integer, aPolices As Variant, sPolice As String, sStyle As String)
+		bCoche As Boolean, nTaille As Integer, aPolices As Variant, sPolice As String, sStyle As String, _
+		bContour As Boolean)
 	Dim aTailles As Variant, i As Integer
 	AjouterControle(oModele, "CheckBox", "chk" & sSuffixe, 12, nY, 108, 12, _
 		Array("Label", "State"), Array(sLibelle, IIf(bCoche, 1, 0)))
@@ -2110,6 +2123,9 @@ Sub AjouterLigneTexte(oModele As Object, sSuffixe As String, nY As Long, sLibell
 		InStr(sStyle, "I") > 0, bCoche, "FontSlant", com.sun.star.awt.FontSlant.ITALIC)
 	AjouterBoutonStyle(oModele, "btnSouligne" & sSuffixe, 302, nY - 1, Tr("dlg.underline_short"), Tr("dlg.underline"), _
 		InStr(sStyle, "U") > 0, bCoche, "FontUnderline", com.sun.star.awt.FontUnderline.SINGLE)
+	' Contour blanc ou noir, sous la ligne
+	AjouterControle(oModele, "CheckBox", "chkContour" & sSuffixe, 24, nY + 16, 294, 12, _
+		Array("Label", "State", "Enabled"), Array(Tr("dlg.outline"), IIf(bContour, 1, 0), bCoche))
 End Sub
 
 Sub AjouterBoutonStyle(oModele As Object, sNom As String, nX As Long, nY As Long, sLettre As String, _
@@ -2139,7 +2155,7 @@ End Sub
 
 ' Valeurs d'une ligne de texte du dialogue (case, taille, police, style)
 Sub LireLigneTexte(sSuffixe As String, aOptions As Variant, kCase As Integer, kTaille As Integer, _
-		kPolice As Integer, kStyle As Integer)
+		kPolice As Integer, kStyle As Integer, kContour As Integer)
 	Dim sStyle As String, sPolice As String
 	aOptions(kCase) = (oDialogue.getControl("chk" & sSuffixe).getState() = 1)
 	aOptions(kTaille) = TailleValide(Val(oDialogue.getControl("cboTaille" & sSuffixe).getText()))
@@ -2149,6 +2165,8 @@ Sub LireLigneTexte(sSuffixe As String, aOptions As Variant, kCase As Integer, kT
 	If oDialogue.getControl("btnItalique" & sSuffixe).getModel().State = 1 Then sStyle = sStyle & "I"
 	If oDialogue.getControl("btnSouligne" & sSuffixe).getModel().State = 1 Then sStyle = sStyle & "U"
 	aOptions(kStyle) = sStyle
+	aOptions(kContour) = IIf(oDialogue.getControl("chkContour" & sSuffixe).getState() = 1, _
+		LISIBILITE_CONTOUR, LISIBILITE_AUCUNE)
 End Sub
 
 Function ColonneChoisie(sSuffixe As String, iDefaut As Integer) As Integer
@@ -2779,13 +2797,11 @@ Sub CasesTexte_itemStateChanged(oEvenement As Object)
 	On Error Resume Next
 	For Each sSuffixe In Array("Valeurs", "Libelles")
 		bActif = (oDialogue.getControl("chk" & sSuffixe).getState() = 1)
-		For Each sCtrl In Array("cboPolice", "cboTaille", "btnGras", "btnItalique", "btnSouligne")
+		For Each sCtrl In Array("cboPolice", "cboTaille", "btnGras", "btnItalique", "btnSouligne", "chkContour")
 			oDialogue.getControl(sCtrl & sSuffixe).getModel().Enabled = bActif
 		Next sCtrl
 	Next sSuffixe
 	oDialogue.getControl("chkLegendeValeurs").getModel().Enabled = (oDialogue.getControl("chkLegende").getState() = 1)
-	bActif = (oDialogue.getControl("chkValeurs").getState() = 1) Or (oDialogue.getControl("chkLibelles").getState() = 1)
-	oDialogue.getControl("chkContour").getModel().Enabled = bActif
 End Sub
 
 Sub CasesTexte_disposing(oEvenement As Object)

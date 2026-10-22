@@ -33,8 +33,7 @@ code INSEE dans son nom.
 
 Le dialogue est organisé en cadres : **Carte** (fond de carte, insertion dans la
 feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
-affichage des valeurs), **Libellés** (colonne, affichage), **Textes sur la carte**
-(contour) et **Légende**.
+affichage des valeurs), **Libellés** (colonne, affichage) et **Légende**.
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
@@ -75,10 +74,11 @@ insérée comme dans Draw : **Afficher les libellés** (libellé sur la 1re lign
   S (souligné). La taille vaut pour la carte insérée dans Calc (16 cm de large) ;
   dans Draw, elle est adaptée pour garder le même aspect.
 - Une zone sans valeur n'affiche que son libellé.
-- **Contour autour des textes** (case cochée par défaut) : texte noir cerné de
-  blanc, texte blanc cerné de noir, lisible sur toutes les couleurs. Le contour
-  est fait de copies du texte décalées tout autour : la mise à jour automatique
-  prend alors 3 s environ pour les départements, au lieu de 0,6 s sans contour.
+- **Contour blanc ou noir** (une case sous chaque ligne, cochée par défaut) :
+  texte noir cerné de blanc, texte blanc cerné de noir, lisible sur toutes les
+  couleurs ; réglable séparément pour les valeurs et pour les libellés. Le
+  contour est fait de copies du texte décalées tout autour : une mise à jour
+  complète prend alors 3 s environ pour les départements, au lieu de 0,6 s.
 
 Valeurs et libellés suivent la mise à jour automatique (un libellé modifié est
 aussi repris). Au-delà de 5 000 zones, aucun texte n'est

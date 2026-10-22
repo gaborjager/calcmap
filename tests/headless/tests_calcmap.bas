@@ -209,18 +209,19 @@ Sub TestLisibiliteCarte()
 	oCalc = DocCalcT()
 	oFeuille = oCalc.getSheets().getByIndex(0)
 	aOpt = OptionsParDefaut()
-	Journal("TEST lisibilite par defaut : " & aOpt(O_LISIBILITE))
+	Journal("TEST contour par defaut : valeurs " & aOpt(O_CONTOUR_VALEURS) & ", libelles " & aOpt(O_CONTOUR_LIBELLES))
 	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True : aOpt(O_TAILLE_LIBELLES) = 7
 	sLien = InsererCarteT(aOpt, "jaune-rouge-10")
 	oG = oFeuille.getDrawPage().getByIndex(0)
 	aChamps = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLien), "|")
-	For Each sMode In Array("aucune", "contour")
-		aOpt(O_LISIBILITE) = sMode
+	For Each sMode In Array("aucune", "contour", "valeurs seules")
+		aOpt(O_CONTOUR_VALEURS) = IIf(sMode = "aucune", "aucune", "contour")
+		aOpt(O_CONTOUR_LIBELLES) = IIf(sMode = "contour", "contour", "aucune")
 		oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLien, _
 			ChampsLien(aChamps(1), aChamps(2), aChamps(3), False, aOpt))
 		t = GetSystemTicks()
 		RecalculerLien(oCalc, sLien)
-		Journal("TEST " & sMode & " : " & oG.getCount() & " formes dans la carte, recoloriage " & (GetSystemTicks() - t) & " ms")
+		Journal("TEST " & sMode & " : " & oG.getCount() & " formes dans la carte, recoloriage " & (GetSystemTicks() - t) & " ms ; " & CopieT(oG))
 		ExporterFormeT(oG, "lisibilite-" & sMode & ".png")
 	Next sMode
 	FermerJournal()
@@ -257,7 +258,7 @@ Sub TestDialogue()
 	For Each sMode In Array("aucune", "contour")
 		aOpt = OptionsParDefaut()
 		aOpt(O_VALEURS) = True : aOpt(O_STYLE_LIBELLES) = "BI" : aOpt(O_TAILLE_LIBELLES) = 13
-		aOpt(O_LISIBILITE) = sMode
+		aOpt(O_CONTOUR_VALEURS) = sMode : aOpt(O_CONTOUR_LIBELLES) = IIf(sMode = "aucune", "contour", "aucune")
 		sAvant = TexteOptions(aOpt)
 		bI = True
 		n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "etat", _
@@ -359,3 +360,21 @@ ErrT:
 	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
 	Resume Next
 End Sub
+
+' Paragraphes d'une copie de contour du texte des Vosges : texte et transparence
+Function CopieT(oG As Object) As String
+	Dim i As Long, o As Object, oEnum As Object, p As Object, s As String
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If o.Name = PREFIXE_TEXTE & " 88" Then
+			oEnum = o.getText().createEnumeration()
+			s = ""
+			Do While oEnum.hasMoreElements()
+				p = oEnum.nextElement()
+				s = s & "[" & p.getString() & "]"
+			Loop
+			CopieT = "1re forme texte des Vosges : " & s & " couleur " & Hex(o.CharColor)
+			Exit Function
+		End If
+	Next i
+End Function
