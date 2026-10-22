@@ -465,8 +465,7 @@ ErrT:
 End Sub
 
 ' ---------------------------------------------------------------- paramètres
-' Paramètres lus (avec une extension de configuration éventuelle), puis
-' tentative de modification par l'utilisateur
+' Paramètres lus, puis modifiés comme dans la configuration avancée
 Sub TestParametres()
 	OuvrirJournal()
 	Journal("TEST parametres lus : catalogue=" & UrlCatalogue() & " ; zones max=" & ZonesMax())
@@ -505,3 +504,4 @@ ErrT:
 	JournalAjout("TEST ERREUR ligne " & Erl & " : " & Error$)
 	Resume Next
 End Sub
+

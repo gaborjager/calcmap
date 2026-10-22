@@ -266,46 +266,36 @@ Deux paramètres, dans la configuration de LibreOffice
 | `Catalogue` | `https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json` | catalogue agrégé (ou catalogue de cartes) |
 | `ZonesMax` | `300` | cartes proposées : au plus ce nombre de zones |
 
-- **Un utilisateur** : *Outils → Options → LibreOffice → Avancé → Ouvrir la
-  configuration avancée*, chercher `CalcMap`.
-- **Une entreprise** fournit son propre catalogue (ses sources : france-odg, ses
-  cartes internes…) et l'impose sur les postes, voir *Déploiement*.
+Ils se modifient dans *Outils → Options → LibreOffice → Avancé → Ouvrir la
+configuration avancée* : chercher `ZonesMax` ou `gaborjager` (chercher
+« calcmap » trouve aussi de nombreux chemins de fichiers), puis double-cliquer sur
+la valeur. Ils sont pris en compte à la prochaine exécution de CalcMap.
 
-### Déploiement en entreprise
+Une entreprise peut fournir son propre catalogue agrégé (ses sources : france-odg,
+ses cartes internes…). Pour changer de sources ensuite, il suffit de republier ce
+`catalogue.json` à la même adresse.
 
-**Extension de configuration (recommandé, tous systèmes).** Le script
-`deploiement/creer_configuration.py` produit une petite extension qui ne contient
-que les paramètres :
+### Déploiement par stratégie de groupe (Windows)
 
-```bash
-python3 deploiement/creer_configuration.py \
-    --catalogue https://intranet.exemple.fr/cartes/catalogue.json \
-    --zones-max 300 --verrouiller
-# -> dist/CalcMap-configuration.oxt
-```
+LibreOffice lit aussi sa configuration dans le registre Windows, sous
+`SOFTWARE\Policies\LibreOffice` : une stratégie de groupe peut donc imposer les
+paramètres de CalcMap comme ceux de LibreOffice (*Préférences → Paramètres
+Windows → Registre*, ou un modèle ADMX). Une clé par paramètre, sous
+`HKEY_LOCAL_MACHINE` (tous les utilisateurs du poste) :
 
-L'administrateur l'installe pour tous les utilisateurs du poste, après CalcMap,
-LibreOffice fermé :
+| Clé | Valeur `Value` (REG_SZ) | Valeur `Final` (REG_DWORD) |
+|---|---|---|
+| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\Catalogue` | `https://intranet.exemple.fr/cartes/catalogue.json` | `1` : l'utilisateur ne peut plus la modifier |
+| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\ZonesMax` | `300` | `1` |
 
-```
-unopkg add --shared CalcMap.oxt
-unopkg add --shared CalcMap-configuration.oxt
-```
+Sans `Final`, la valeur n'est qu'une valeur par défaut, que l'utilisateur peut
+changer. CalcMap doit être installé (de préférence pour tous les utilisateurs :
+`unopkg add --shared CalcMap.oxt`) ; les valeurs sont lues au démarrage de
+LibreOffice. Pour vérifier sur un poste : dans la configuration avancée, la
+valeur imposée apparaît, et n'est plus modifiable si elle est verrouillée.
 
-Avec `--verrouiller`, les utilisateurs ne peuvent plus modifier ces paramètres ;
-sans, ce sont seulement les valeurs par défaut du poste. Pour changer de
-catalogue plus tard, il suffit de publier un nouveau `catalogue.json` à la même
-adresse : l'extension de configuration ne change pas.
-
-**Autres possibilités** (mécanismes standard de LibreOffice, non testés avec
-CalcMap) :
-
-- *Windows, stratégies de groupe* : valeurs de registre sous
-  `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\Catalogue`
-  (et `...\ZonesMax`) : `Value` (REG_SZ) pour la valeur, `Final` (REG_DWORD = 1)
-  pour la verrouiller ;
-- *installation de LibreOffice* : le même contenu que `CalcMapConfiguration.xcu`
-  de l'extension, dans la configuration partagée de l'installation.
+> Mécanisme standard de LibreOffice, **non testé avec CalcMap** (pas de poste
+> Windows ici) : à valider sur un poste de test avant le déploiement.
 
 ### Aperçu
 
@@ -433,7 +423,7 @@ tests/headless/lancer.sh TestTextes            # textes des zones, légende
 tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, flèches, saisie)
 tests/headless/lancer.sh TestCatalogue         # catalogue agrégé, filtre, aperçus (fichiers locaux)
 tests/headless/lancer.sh TestIconeSurCarte     # icône sur une carte sélectionnée : configuration
-tests/headless/lancer.sh TestParametres "" dist/CalcMap-configuration.oxt   # paramètres d'une extension de configuration
+tests/headless/lancer.sh TestParametres        # paramètres : valeurs par défaut, modification
 ```
 
 Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
@@ -446,7 +436,6 @@ calcmap/
 ├── build.py                    construit dist/CalcMap.oxt
 ├── dist/CalcMap.oxt            extension prête à installer
 ├── catalogue/catalogue.json    catalogue agrégé (sources de cartes), aussi inclus dans l'extension
-├── deploiement/                extension de configuration pour un déploiement (catalogue, zones max)
 ├── src/
 │   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
 │   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)

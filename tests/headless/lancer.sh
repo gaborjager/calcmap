@@ -1,10 +1,9 @@
 #!/bin/bash
 # Lance une macro de test de CalcMap dans LibreOffice sans écran.
 #
-# Usage : tests/headless/lancer.sh <macro> [classeur.ods] [extension.oxt]
-#   macro     : Sub de tests_calcmap.bas (ex. TestEditeurComplet)
-#   classeur  : par défaut tests/test-departements.ods (copié, jamais modifié)
-#   extension : extension à installer en plus de CalcMap (ex. configuration)
+# Usage : tests/headless/lancer.sh <macro> [classeur.ods]
+#   macro    : Sub de tests_calcmap.bas (ex. TestEditeurComplet)
+#   classeur : par défaut tests/test-departements.ods (copié, jamais modifié)
 #
 # Construit une copie de l'extension avec les macros de test ajoutées,
 # l'installe dans un profil LibreOffice jetable, lance la macro et affiche
@@ -14,7 +13,6 @@ ICI="$(cd "$(dirname "$0")" && pwd)"
 PROJET="$(cd "$ICI/../.." && pwd)"
 MACRO="${1:?macro de test attendue}"
 CLASSEUR="${2:-$PROJET/tests/test-departements.ods}"
-SUPPLEMENT="${3:-}"
 TRAVAIL="${TMPDIR:-/tmp}/calcmap-tests"
 PORT=$((2200 + RANDOM % 500))
 
@@ -25,9 +23,6 @@ rm -rf "$TRAVAIL/copie/.git"
 cat "$ICI/tests_calcmap.bas" >> "$TRAVAIL/copie/src/basic/CalcMap.bas"
 (cd "$TRAVAIL/copie" && python3 build.py > /dev/null)
 unopkg add -f "-env:UserInstallation=file://$TRAVAIL/profil" "$TRAVAIL/copie/dist/CalcMap.oxt" > /dev/null 2>&1
-if [ -n "$SUPPLEMENT" ]; then
-	unopkg add -f "-env:UserInstallation=file://$TRAVAIL/profil" "$SUPPLEMENT" > /dev/null 2>&1
-fi
 cp "$CLASSEUR" "$TRAVAIL/classeur.ods"
 rm -f "$TRAVAIL"/.~lock*
 export CALCMAP_TESTS="$TRAVAIL"
