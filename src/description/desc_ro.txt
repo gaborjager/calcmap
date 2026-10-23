@@ -1,0 +1,1 @@
+Colorează o hartă de bază .odg (proiectul france-odg) pe baza a două coloane din Calc: cod | valoare. Hărțile de bază sunt descărcate dintr-un catalog de hărți și păstrate în cache; palete de culori extensibile.

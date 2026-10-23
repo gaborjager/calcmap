@@ -1,0 +1,1 @@
+Colorea un mapa base .odg (proyecto france-odg) a partir de dos columnas de Calc: código | valor. Los mapas base se descargan de un catálogo de mapas y se guardan en caché; paletas de colores ampliables.

@@ -1,0 +1,1 @@
+Farvelægger et .odg-grundkort (projektet france-odg) ud fra to kolonner i Calc: kode | værdi. Grundkortene hentes fra et kortkatalog og gemmes i cachen; udvidelige farvepaletter.

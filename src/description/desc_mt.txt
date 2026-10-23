@@ -1,0 +1,1 @@
+Tikkulura mappa bażi .odg (proġett france-odg) minn żewġ kolonni ta' Calc: kodiċi | valur. Il-mapep bażi jitniżżlu minn katalgu ta' mapep u jinżammu fil-cache; paletti tal-kuluri estensibbli.

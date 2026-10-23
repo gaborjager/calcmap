@@ -1,0 +1,1 @@
+Koloruje mapę bazową .odg (projekt france-odg) na podstawie dwóch kolumn programu Calc: kod | wartość. Mapy bazowe są pobierane z katalogu map i przechowywane w pamięci podręcznej; rozszerzalne palety kolorów.

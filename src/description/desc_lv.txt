@@ -1,0 +1,1 @@
+Iekrāso .odg pamatkarti (projekts france-odg) pēc divām Calc kolonnām: kods | vērtība. Pamatkartes tiek lejupielādētas no karšu kataloga un saglabātas kešatmiņā; paplašināmas krāsu paletes.

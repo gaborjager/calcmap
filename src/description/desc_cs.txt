@@ -1,0 +1,1 @@
+Vybarví podkladovou mapu .odg (projekt france-odg) podle dvou sloupců v Calcu: kód | hodnota. Podkladové mapy se stahují z katalogu map a ukládají do mezipaměti; rozšiřitelné barevné palety.

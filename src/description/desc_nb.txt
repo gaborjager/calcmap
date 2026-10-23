@@ -1,0 +1,1 @@
+Fargelegger et .odg-grunnkart (prosjektet france-odg) ut fra to kolonner i Calc: kode | verdi. Grunnkartene lastes ned fra en kartkatalog og lagres i hurtigbufferen; utvidbare fargepaletter.

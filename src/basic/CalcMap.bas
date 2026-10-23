@@ -71,7 +71,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.14.1"
+Const VERSION = "0.15.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -2168,12 +2168,13 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	AjouterCadre(oModele, "grpCarte", 4, 4, 322, 96, Tr("dlg.grp_map"))
 	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 218, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLibelles, Not bConfig))
-	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 218, 44, Array("MultiLine"), Array(True))
+	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 218, 36, Array("MultiLine"), Array(True))
 	' Aperçu de la carte choisie (image par défaut si aucun)
 	AjouterControle(oModele, "ImageControl", "imgApercu", 236, 14, 84, 70, _
 		Array("ScaleImage", "ScaleMode", "Border"), Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, 1))
-	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 84, 218, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig))
+	' Sur deux lignes : libellé long dans plusieurs langues
+	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 72, 218, 24, _
+		Array("Label", "State", "Enabled", "MultiLine"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig, True))
 	' Code : sa colonne
 	AjouterCadre(oModele, "grpCode", 4, 104, 322, 30, Tr("dlg.grp_code"))
 	AjouterListeColonne(oModele, "Code", 116, aColonnes, aOptions(O_COL_CODE))

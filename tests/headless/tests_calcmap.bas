@@ -505,3 +505,43 @@ ErrT:
 	Resume Next
 End Sub
 
+
+' ---------------------------------------------------------------- traductions
+' Chaque langue : fichier chargé, toutes les clés traduites, exemple lu en
+' UTF-8 ; dialogue construit dans quelques langues
+Sub TestTraductions()
+	Dim aCodes As Variant, sCode As Variant, aCles As Variant, sCle As Variant, nManque As Integer, s As String
+	Dim oPlage As Object, aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, n As Integer
+	OuvrirJournal()
+	On Error GoTo ErrT
+	aCodes = Split("en fr ar bg cs da de el es et fi ga hi hr hu id it ja ko lt lv mt nb nl pl pt ro ru sk sl sv tr uk zh", " ")
+	aCles = Array("dlg.grp_map", "dlg.show_values", "ed.help", "msg.inserted_as_image", "dlg.zones", "menu.configure")
+	For Each sCode In aCodes
+		sLangue = sCode
+		ChargerTextes()
+		nManque = 0
+		For Each sCle In aCles
+			If Tr(sCle) = sCle Then nManque = nManque + 1
+		Next sCle
+		s = s & sCode & "=" & Tr("dlg.grp_map") & IIf(nManque > 0, "(!" & nManque & ")", "") & " "
+	Next sCode
+	Journal("TEST langues : " & s)
+	sLangue = "fr" : ChargerTextes()
+	Journal("TEST francais different de l'anglais : " & Tr("dlg.show_values") & " / %3 : " & Tr("ed.info", 1, 2, 96))
+	aPals = ChargerPalettes()
+	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDonneesDialogue = oPlage.getDataArray()
+	For Each sCode In Array("de", "ar", "ja")
+		sLangue = sCode : ChargerTextes()
+		aOpt = OptionsParDefaut()
+		bI = True
+		n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "", _
+			"", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
+		Journal("TEST dialogue en " & sCode & " : construit (resultat " & n & ")")
+	Next sCode
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub

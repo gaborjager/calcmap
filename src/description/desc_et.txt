@@ -1,0 +1,1 @@
+Värvib .odg-aluskaardi (projekt france-odg) kahe Calci veeru põhjal: kood | väärtus. Aluskaardid laaditakse alla kaardikataloogist ja salvestatakse vahemällu; laiendatavad värvipaletid.

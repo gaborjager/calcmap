@@ -215,12 +215,31 @@ l'extension sont dans `src/palettes.json`.
 
 ## Langues
 
-L'interface suit la langue de LibreOffice : français et anglais sont fournis, et
-l'anglais sert de repli pour tout texte non traduit. Les textes sont dans
-`src/i18n/messages_<langue>.properties` (UTF-8, `clé=texte`, `\n` pour un retour à
-la ligne, `%1` pour une valeur insérée). **Ajouter une langue** : copier
-`messages_en.properties` en `messages_<code>.properties` (ex. `messages_de.properties`),
-traduire, puis reconstruire l'extension ; `build.py` inclut tout le dossier `i18n/`.
+L'interface suit la langue de LibreOffice (code à deux lettres). 34 langues
+sont fournies :
+
+- les 24 langues officielles de l'Union européenne : allemand (`de`), anglais
+  (`en`), bulgare (`bg`), croate (`hr`), danois (`da`), espagnol (`es`), estonien
+  (`et`), finnois (`fi`), français (`fr`), grec (`el`), hongrois (`hu`), irlandais
+  (`ga`), italien (`it`), letton (`lv`), lituanien (`lt`), maltais (`mt`),
+  néerlandais (`nl`), polonais (`pl`), portugais (`pt`), roumain (`ro`), slovaque
+  (`sk`), slovène (`sl`), suédois (`sv`), tchèque (`cs`) ;
+- d'autres langues très parlées : arabe (`ar`), chinois simplifié (`zh`), coréen
+  (`ko`), hindi (`hi`), indonésien (`id`), japonais (`ja`), norvégien bokmål
+  (`nb`), russe (`ru`), turc (`tr`), ukrainien (`uk`).
+
+Le nom de l'extension, sa description, le bouton et le menu sont traduits aussi.
+L'anglais sert de repli pour tout texte non traduit ; le portugais est celui du
+Portugal, le chinois en caractères simplifiés (aussi pour `zh-TW`). Les
+traductions, hors français et anglais, n'ont pas été relues par des locuteurs
+natifs : corrections bienvenues.
+
+Les textes sont dans `src/i18n/messages_<langue>.properties` (UTF-8, `clé=texte`,
+`\n` pour un retour à la ligne, `%1` pour une valeur insérée). **Ajouter ou
+corriger une langue** : copier `messages_en.properties` en
+`messages_<code>.properties`, traduire, puis reconstruire l'extension ; `build.py`
+inclut tout le dossier `i18n/`. Pour le nom affiché, la description et le menu :
+`src/description.xml`, `src/description/desc_<code>.txt`, `src/Addons.xcu`.
 Le catalogue france-odg peut aussi fournir des champs traduits (`title_en`,
 `description_en`…), utilisés quand ils existent. Le journal reste en français.
 
@@ -424,6 +443,7 @@ tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, fl
 tests/headless/lancer.sh TestCatalogue         # catalogue agrégé, filtre, aperçus (fichiers locaux)
 tests/headless/lancer.sh TestIconeSurCarte     # icône sur une carte sélectionnée : configuration
 tests/headless/lancer.sh TestParametres        # paramètres : valeurs par défaut, modification
+tests/headless/lancer.sh TestTraductions       # chaque langue chargée ; dialogue en de, ar, ja
 ```
 
 Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
@@ -440,7 +460,7 @@ calcmap/
 │   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
 │   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)
 │   ├── palettes.json           palettes de couleurs fournies
-│   ├── i18n/                   textes traduits (messages_fr, messages_en…)
+│   ├── i18n/                   textes traduits (34 langues : messages_fr, messages_en…)
 │   ├── description/            description de l'extension par langue
 │   ├── Addons.xcu              bouton, entrée de menu, icône
 │   ├── Events.xcu              reconnexion des cartes liées à l'ouverture

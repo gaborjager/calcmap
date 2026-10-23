@@ -1,14 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <description xmlns="http://openoffice.org/extensions/description/2006" xmlns:xlink="http://www.w3.org/1999/xlink">
  <identifier value="fr.github.gaborjager.calcmap"/>
- <version value="0.14.1"/>
+ <version value="0.15.0"/>
  <display-name>
+  <name lang="ar">CalcMap – خرائط موضوعية لـ Calc</name>
+  <name lang="bg">CalcMap – тематични карти за Calc</name>
+  <name lang="cs">CalcMap – tematické mapy pro Calc</name>
+  <name lang="da">CalcMap – temakort til Calc</name>
+  <name lang="de">CalcMap – Thematische Karten für Calc</name>
+  <name lang="el">CalcMap – θεματικοί χάρτες για το Calc</name>
   <name lang="en">CalcMap – thematic maps for Calc</name>
+  <name lang="es">CalcMap – mapas temáticos para Calc</name>
+  <name lang="et">CalcMap – temaatilised kaardid Calcile</name>
+  <name lang="fi">CalcMap – teemakartat Calciin</name>
   <name lang="fr">CalcMap – cartes thématiques pour Calc</name>
+  <name lang="ga">CalcMap – léarscáileanna téamacha do Calc</name>
+  <name lang="hi">CalcMap – Calc के लिए विषयगत मानचित्र</name>
+  <name lang="hr">CalcMap – tematske karte za Calc</name>
+  <name lang="hu">CalcMap – tematikus térképek a Calchoz</name>
+  <name lang="id">CalcMap – peta tematik untuk Calc</name>
+  <name lang="it">CalcMap – carte tematiche per Calc</name>
+  <name lang="ja">CalcMap – Calc 用主題図</name>
+  <name lang="ko">CalcMap – Calc용 주제도</name>
+  <name lang="lt">CalcMap – teminiai žemėlapiai „Calc“ programai</name>
+  <name lang="lv">CalcMap – tematiskās kartes programmai Calc</name>
+  <name lang="mt">CalcMap – mapep tematiċi għal Calc</name>
+  <name lang="nb">CalcMap – temakart for Calc</name>
+  <name lang="nl">CalcMap – thematische kaarten voor Calc</name>
+  <name lang="pl">CalcMap – mapy tematyczne dla programu Calc</name>
+  <name lang="pt">CalcMap – mapas temáticos para o Calc</name>
+  <name lang="ro">CalcMap – hărți tematice pentru Calc</name>
+  <name lang="ru">CalcMap – тематические карты для Calc</name>
+  <name lang="sk">CalcMap – tematické mapy pre Calc</name>
+  <name lang="sl">CalcMap – tematski zemljevidi za Calc</name>
+  <name lang="sv">CalcMap – tematiska kartor för Calc</name>
+  <name lang="tr">CalcMap – Calc için tematik haritalar</name>
+  <name lang="uk">CalcMap – тематичні карти для Calc</name>
+  <name lang="zh">CalcMap – Calc 专题地图</name>
  </display-name>
  <extension-description>
+  <src lang="ar" xlink:href="description/desc_ar.txt"/>
+  <src lang="bg" xlink:href="description/desc_bg.txt"/>
+  <src lang="cs" xlink:href="description/desc_cs.txt"/>
+  <src lang="da" xlink:href="description/desc_da.txt"/>
+  <src lang="de" xlink:href="description/desc_de.txt"/>
+  <src lang="el" xlink:href="description/desc_el.txt"/>
   <src lang="en" xlink:href="description/desc_en.txt"/>
+  <src lang="es" xlink:href="description/desc_es.txt"/>
+  <src lang="et" xlink:href="description/desc_et.txt"/>
+  <src lang="fi" xlink:href="description/desc_fi.txt"/>
   <src lang="fr" xlink:href="description/desc_fr.txt"/>
+  <src lang="ga" xlink:href="description/desc_ga.txt"/>
+  <src lang="hi" xlink:href="description/desc_hi.txt"/>
+  <src lang="hr" xlink:href="description/desc_hr.txt"/>
+  <src lang="hu" xlink:href="description/desc_hu.txt"/>
+  <src lang="id" xlink:href="description/desc_id.txt"/>
+  <src lang="it" xlink:href="description/desc_it.txt"/>
+  <src lang="ja" xlink:href="description/desc_ja.txt"/>
+  <src lang="ko" xlink:href="description/desc_ko.txt"/>
+  <src lang="lt" xlink:href="description/desc_lt.txt"/>
+  <src lang="lv" xlink:href="description/desc_lv.txt"/>
+  <src lang="mt" xlink:href="description/desc_mt.txt"/>
+  <src lang="nb" xlink:href="description/desc_nb.txt"/>
+  <src lang="nl" xlink:href="description/desc_nl.txt"/>
+  <src lang="pl" xlink:href="description/desc_pl.txt"/>
+  <src lang="pt" xlink:href="description/desc_pt.txt"/>
+  <src lang="ro" xlink:href="description/desc_ro.txt"/>
+  <src lang="ru" xlink:href="description/desc_ru.txt"/>
+  <src lang="sk" xlink:href="description/desc_sk.txt"/>
+  <src lang="sl" xlink:href="description/desc_sl.txt"/>
+  <src lang="sv" xlink:href="description/desc_sv.txt"/>
+  <src lang="tr" xlink:href="description/desc_tr.txt"/>
+  <src lang="uk" xlink:href="description/desc_uk.txt"/>
+  <src lang="zh" xlink:href="description/desc_zh.txt"/>
  </extension-description>
  <icon><default xlink:href="icons/carte_26.png"/></icon>
 </description>

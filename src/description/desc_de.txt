@@ -1,0 +1,1 @@
+Färbt eine .odg-Grundkarte (Projekt france-odg) anhand von zwei Calc-Spalten ein: Code | Wert. Die Grundkarten werden aus einem Kartenkatalog heruntergeladen und zwischengespeichert; erweiterbare Farbpaletten.

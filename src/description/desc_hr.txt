@@ -1,0 +1,1 @@
+Boja osnovnu kartu .odg (projekt france-odg) prema dvama stupcima u Calcu: kod | vrijednost. Osnovne karte preuzimaju se iz kataloga karata i spremaju u predmemoriju; proširive palete boja.
