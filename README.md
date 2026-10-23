@@ -33,10 +33,10 @@ code INSEE dans son nom.
 > communes (35 191) sont écartés.
 
 Le dialogue est organisé en cadres : en haut **Carte** (fond de carte, son
-aperçu, insertion dans la feuille) et **Légende** ; dessous, côte à côte comme
-les colonnes à choisir, **Code** (colonne, et des exemples de codes de la carte
-pour comparer), **Valeurs** (colonne, couleurs et classes, affichage des
-valeurs) et **Libellés** (colonne, affichage). Devant les codes de la carte, une
+aperçu, insertion dans la feuille) ; dessous, côte à côte comme les colonnes à
+choisir, **Code** (colonne, et des exemples de codes de la carte pour
+comparer), **Valeurs** (colonne, couleurs et classes, affichage des valeurs) et
+**Libellés** (colonne, affichage) ; tout en bas **Légende**. Devant les codes de la carte, une
 coche verte indique qu'ils se trouvent tous dans la colonne du code choisie ;
 sinon un petit triangle signale ceux qui manquent (infobulle).
 

@@ -71,7 +71,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.17.0"
+Const VERSION = "0.18.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -2186,69 +2186,74 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
-	oModele.Height = 244
+	oModele.Height = 288
 	oModele.Width = 650
-	' En haut : Carte (fond, description, insertion, aperçu) et Légende ;
-	' dessous, côte à côte comme les colonnes à choisir : Code, Valeurs, Libellés
-	AjouterCadre(oModele, "grpCarte", 4, 4, 424, 92, Tr("dlg.grp_map"))
+	' En haut : Carte (fond, description, insertion, aperçu) ; dessous, côte à
+	' côte comme les colonnes à choisir : Code, Valeurs, Libellés ; puis Légende
+	AjouterCadre(oModele, "grpCarte", 4, 4, 642, 92, Tr("dlg.grp_map"))
 	AjouterControle(oModele, "ListBox", "lstCarte", 12, 16, 318, 14, _
 		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLibelles, Not bConfig))
 	If bConfig Then
 		' Configuration : le fond de carte ne change pas, son nom suffit
-		AjouterControle(oModele, "FixedText", "lblTitreCarte", 12, 18, 318, 12, _
+		AjouterControle(oModele, "FixedText", "lblTitreCarte", 12, 18, 530, 12, _
 			Array("Label", "FontWeight"), Array(IIf(nFin >= 0, aLibelles(0), ""), com.sun.star.awt.FontWeight.BOLD))
 	End If
-	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 318, 36, Array("MultiLine"), Array(True))
-	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 72, 318, 20, _
+	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 530, 36, Array("MultiLine"), Array(True))
+	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 72, 530, 20, _
 		Array("Label", "State", "Enabled", "MultiLine"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig, True))
 	' Aperçu de la carte choisie (image par défaut si aucun)
-	AjouterControle(oModele, "ImageControl", "imgApercu", 336, 14, 84, 70, _
+	AjouterControle(oModele, "ImageControl", "imgApercu", 556, 14, 84, 70, _
 		Array("ScaleImage", "ScaleMode", "Border"), Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, 1))
-	AjouterCadre(oModele, "grpLegende", 432, 4, 214, 92, Tr("dlg.grp_legend"))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 440, 18, 200, 12, _
-		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 452, 34, 188, 12, _
-		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
-		aOptions(O_LEGENDE)))
 	' Code : sa colonne, et les codes de la carte (exemples) pour comparer,
 	' avec un picto : trouvés dans la colonne, ou non
-	AjouterCadre(oModele, "grpCode", 4, 100, 212, 118, Tr("dlg.grp_code"))
+	AjouterCadre(oModele, "grpCode", 4, 100, 212, 130, Tr("dlg.grp_code"))
 	AjouterListeColonne(oModele, "Code", 12, 112, aColonnes, aOptions(O_COL_CODE), Tr("dlg.column"), 154)
 	AjouterControle(oModele, "ImageControl", "imgCodes", 12, 130, 10, 10, _
 		Array("ScaleImage", "ScaleMode", "Border"), Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, 0))
 	AjouterControle(oModele, "FixedText", "lblCodesCarte", 26, 130, 182, 20, _
 		Array("Label", "TextColor", "MultiLine", "HelpText"), Array("", RGB(96, 96, 96), True, Tr("dlg.map_codes_help")))
-	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage
-	AjouterCadre(oModele, "grpValeurs", 220, 100, 212, 118, Tr("dlg.grp_values"))
+	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage,
+	' séparés par des lignes
+	AjouterCadre(oModele, "grpValeurs", 220, 100, 212, 130, Tr("dlg.grp_values"))
 	AjouterListeColonne(oModele, "Valeur", 228, 112, aColonnes, aOptions(O_COL_VALEUR), Tr("dlg.column"), 154)
-	AjouterControle(oModele, "FixedText", "lblPalette", 228, 130, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
-	AjouterControle(oModele, "ListBox", "lstPalette", 270, 128, 100, 14, _
+	AjouterControle(oModele, "FixedLine", "linValeurs1", 228, 128, 196, 4, Array(), Array())
+	AjouterControle(oModele, "FixedText", "lblPalette", 228, 136, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
+	AjouterControle(oModele, "ListBox", "lstPalette", 270, 134, 100, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 16, aNomsPal))
-	AjouterControle(oModele, "Button", "btnClasses", 374, 128, 50, 14, _
+	AjouterControle(oModele, "Button", "btnClasses", 374, 134, 50, 14, _
 		Array("Label", "PushButtonType", "HelpText"), Array(Tr("dlg.classes"), 0, Tr("dlg.classes_help")))
 	For i = 0 To NB_NUANCES_APERCU - 1
-		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 145, 10, 12, Array("Border"), Array(2))
+		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 151, 10, 12, Array("Border"), Array(2))
 	Next i
-	AjouterControle(oModele, "FixedText", "lblClasses", 270, 159, 154, 10, _
+	AjouterControle(oModele, "FixedText", "lblClasses", 270, 165, 154, 10, _
 		Array("Label", "TextColor"), Array("", RGB(96, 96, 96)))
 	sClassesDialogue = aOptions(O_CLASSES)
-	AjouterLigneTexte(oModele, "Valeurs", 228, 172, Tr("dlg.show_values"), aOptions(O_VALEURS), _
+	AjouterControle(oModele, "FixedLine", "linValeurs2", 228, 177, 196, 4, Array(), Array())
+	AjouterLigneTexte(oModele, "Valeurs", 228, 183, Tr("dlg.show_values"), aOptions(O_VALEURS), _
 		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS), _
 		aOptions(O_CONTOUR_VALEURS) <> LISIBILITE_AUCUNE)
-	' Libellés : colonne, affichage
-	AjouterCadre(oModele, "grpLibelles", 436, 100, 210, 118, Tr("dlg.grp_labels"))
+	' Libellés : colonne, affichage (au niveau de celui des valeurs)
+	AjouterCadre(oModele, "grpLibelles", 436, 100, 210, 130, Tr("dlg.grp_labels"))
 	AjouterListeColonne(oModele, "Libelle", 444, 112, aColonnes, aOptions(O_COL_LIBELLE), Tr("dlg.column"), 154)
-	AjouterLigneTexte(oModele, "Libelles", 444, 128, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+	AjouterControle(oModele, "FixedLine", "linLibelles", 444, 128, 196, 4, Array(), Array())
+	AjouterLigneTexte(oModele, "Libelles", 444, 183, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
 		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES), _
 		aOptions(O_CONTOUR_LIBELLES) <> LISIBILITE_AUCUNE)
+	' Légende, tout en bas
+	AjouterCadre(oModele, "grpLegende", 4, 234, 642, 28, Tr("dlg.grp_legend"))
+	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 247, 200, 12, _
+		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 228, 247, 410, 12, _
+		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
+		aOptions(O_LEGENDE)))
 	' Boutons, et l'état du catalogue entre « Autre fichier… » et OK
-	AjouterControle(oModele, "Button", "btnAutre", 6, 224, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 268, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "FixedText", "lblEtat", 80, 222, 452, 20, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 80, 266, 452, 20, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnOk", 540, 224, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 540, 268, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 596, 224, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 596, 268, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
