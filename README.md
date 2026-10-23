@@ -386,8 +386,9 @@ the map and the summary. With `DETAILED_LOG = True`, it also traces each zone.
 
 ## Installation
 
-Download [`dist/CalcMap.oxt`](https://github.com/gaborjager/calcmap/raw/main/dist/CalcMap.oxt)
-(latest build), then:
+Download `CalcMap.oxt` from the latest [release](https://github.com/gaborjager/calcmap/releases/latest)
+(what changed: [CHANGELOG.md](CHANGELOG.md)), or the latest build
+[`dist/CalcMap.oxt`](https://github.com/gaborjager/calcmap/raw/main/dist/CalcMap.oxt), then:
 
 - **One user**: double-click `CalcMap.oxt`, or **Tools → Extension Manager →
   Add**, then restart LibreOffice.
@@ -433,6 +434,19 @@ python3 build.py
 Produces `dist/CalcMap.oxt`. The version is read from the `VERSION` constant of
 the Basic code and copied into `description.xml`.
 
+### Releases
+
+Releases are created by GitHub Actions (`.github/workflows/release.yml`): on
+every push to `main`, if the tag `v<VERSION>` does not exist yet, the
+extension is built and the release "CalcMap <VERSION>" is created, described
+by the matching section of [CHANGELOG.md](CHANGELOG.md), with `CalcMap.oxt`
+attached. To publish a version: raise `VERSION`, add its section at the top
+of `CHANGELOG.md`, commit and push. The workflow fails if the section is
+missing (`python3 tools/release_notes.py notes <version>` shows it).
+
+The repository needs *Settings → Actions → General → Workflow permissions →
+Read and write permissions* for the workflow to create releases.
+
 ## Test files
 
 One spreadsheet per base map of the catalog (the cantons and municipalities
@@ -476,6 +490,9 @@ or typing are simulated by calling their listeners.
 ```
 calcmap/
 ├── build.py                    builds dist/CalcMap.oxt
+├── CHANGELOG.md                changes per version (release descriptions)
+├── .github/workflows/          release.yml: GitHub release for each new version
+├── tools/release_notes.py      version and release notes for the workflow
 ├── dist/CalcMap.oxt            extension ready to install
 ├── catalogue/catalogue.json    aggregated catalog (map sources), also included in the extension
 ├── src/
