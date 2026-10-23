@@ -1,1 +1,1 @@
-Kiszínez egy .odg alaptérképet (france-odg projekt) két Calc-oszlop alapján: kód | érték. Az alaptérképek egy térképkatalógusból töltődnek le, és a gyorsítótárba kerülnek; bővíthető színpaletták.
+Kiszínez egy .odg alaptérképet (odg-atlas projekt) két Calc-oszlop alapján: kód | érték. Az alaptérképek egy térképkatalógusból töltődnek le, és a gyorsítótárba kerülnek; bővíthető színpaletták.

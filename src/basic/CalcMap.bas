@@ -8,12 +8,12 @@ REM   1. In Calc, select the data: by default code in the 1st column,
 REM      value in the 2nd, optional label in the 3rd; the dialog lets you
 REM      choose other columns of the selection.
 REM   2. Click the globe icon (or Tools > CalcMap: color a map…).
-REM   3. Choose the base map in the list (france-odg catalog), or another
+REM   3. Choose the base map in the list (ODG Atlas catalog), or another
 REM      .odg file with "Other file…", and the color palette.
 REM
 REM  Base maps: the aggregated catalog (Catalog setting, by default the
 REM  project's catalogue/catalogue.json) lists sources, each one a catalog
-REM  of maps in the france-odg format (maps.json); it is read on every
+REM  of maps in the ODG Atlas format (maps.json); it is read on every
 REM  run. Only maps with at most MaxZones zones (setting, 300 by default)
 REM  are offered. Maps are downloaded into the LibreOffice profile
 REM  ($(user)/calcmap/) and downloaded again only if their SHA-256
@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.20.0"
+Const VERSION = "0.20.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -1479,7 +1479,7 @@ Failed:
 End Function
 
 ' ---------------------------------------------------------------------------
-' Choice of the base map (france-odg catalog) and of the palette. Returns
+' Choice of the base map (ODG Atlas catalog) and of the palette. Returns
 ' the URL of the file to open ("" if canceled); bFromCache tells a map from
 ' the cache; aPalette receives the chosen palette (the default one otherwise);
 ' bInsert tells whether the map must be inserted into the Calc sheet,

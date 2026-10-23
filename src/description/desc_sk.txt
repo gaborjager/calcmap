@@ -1,1 +1,1 @@
-Vyfarbí podkladovú mapu .odg (projekt france-odg) podľa dvoch stĺpcov v Calcu: kód | hodnota. Podkladové mapy sa sťahujú z katalógu máp a ukladajú do vyrovnávacej pamäte; rozšíriteľné farebné palety.
+Vyfarbí podkladovú mapu .odg (projekt odg-atlas) podľa dvoch stĺpcov v Calcu: kód | hodnota. Podkladové mapy sa sťahujú z katalógu máp a ukladajú do vyrovnávacej pamäte; rozšíriteľné farebné palety.

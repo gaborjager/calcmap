@@ -1,1 +1,1 @@
-Värittää .odg-pohjakartan (france-odg-projekti) kahden Calc-sarakkeen perusteella: koodi | arvo. Pohjakartat ladataan karttaluettelosta ja tallennetaan välimuistiin; laajennettavat väripaletit.
+Värittää .odg-pohjakartan (odg-atlas-projekti) kahden Calc-sarakkeen perusteella: koodi | arvo. Pohjakartat ladataan karttaluettelosta ja tallennetaan välimuistiin; laajennettavat väripaletit.

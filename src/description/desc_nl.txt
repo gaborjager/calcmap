@@ -1,1 +1,1 @@
-Kleurt een .odg-basiskaart (project france-odg) in op basis van twee Calc-kolommen: code | waarde. Basiskaarten worden gedownload uit een kaartcatalogus en in de cache bewaard; uitbreidbare kleurenpaletten.
+Kleurt een .odg-basiskaart (project odg-atlas) in op basis van twee Calc-kolommen: code | waarde. Basiskaarten worden gedownload uit een kaartcatalogus en in de cache bewaard; uitbreidbare kleurenpaletten.

@@ -2,8 +2,9 @@
 
 **CalcMap** is a LibreOffice extension that colors a `.odg` base map from two columns
 of a Calc spreadsheet: **code | value**. It uses the base maps of the
-[france-odg](https://github.com/gaborjager/france-odg) project, where each zone carries
-its INSEE code in its name, and any other base map built the same way.
+[ODG Atlas](https://github.com/gaborjager/odg-atlas) project (France, European
+Union…), where each zone carries its official code in its name (INSEE code,
+ISO country code…), and any other base map built the same way.
 
 ## Usage
 
@@ -12,7 +13,8 @@ its INSEE code in its name, and any other base map built the same way.
    are selected, the next one is offered as the label. Whole columns can be
    selected.
 2. Click the **globe** icon on the toolbar (or **Tools → CalcMap: color a map…**).
-3. Choose the base map in the drop-down list (regions, departments), or another
+3. Choose the base map in the drop-down list (French regions and departments,
+   countries of the European Union…), or another
    `.odg` file with **Other file…**.
 4. Choose the color palette (a preview is shown below the list), and if needed
    customize the classes with **Classes…** (see below).
@@ -27,8 +29,8 @@ its INSEE code in its name, and any other base map built the same way.
 8. Check **Show the legend**, **with the values** (bounds of each class) or without.
 
 > Only maps with at most **300 zones** are offered (`MaxZones` setting, see
-> *Settings*): with the current catalog, the regions and the departments (and
-> later a map of the world's countries). Cantons (2,306 zones) and
+> *Settings*): with the current catalog, the French regions and departments
+> and the countries of the European Union. Cantons (2,306 zones) and
 > municipalities (35,191) are left out.
 
 The dialog is organized in frames: at the top **Map** (base map, its preview,
@@ -252,16 +254,16 @@ the menu: `src/description.xml`, `src/description/desc_<code>.txt`,
 The list of maps comes from an **aggregated catalog**, read on every run: by
 default [`catalogue/catalogue.json`](catalogue/catalogue.json) of this project
 (path kept as is, since installed versions point to it). It lists **sources**,
-each one a catalog of maps in the [france-odg](https://github.com/gaborjager/france-odg)
-format (`maps.json`); for now only one, france-odg.
+each one a catalog of maps in the [ODG Atlas](https://github.com/gaborjager/odg-atlas)
+format (`maps.json`); for now only one, the ODG Atlas (formerly france-odg).
 
 ```json
 {
   "version": 1,
   "title": "CalcMap catalog",
   "sources": [
-    { "id": "france-odg", "title": "Maps of France (france-odg)",
-      "url": "https://raw.githubusercontent.com/gaborjager/france-odg/main/output/maps.json" }
+    { "id": "odg-atlas", "title": "ODG Atlas",
+      "url": "https://raw.githubusercontent.com/gaborjager/odg-atlas/main/output/maps.json" }
   ]
 }
 ```
@@ -293,7 +295,7 @@ Configuration*: search for `MaxZones` or `gaborjager` (searching for "calcmap"
 also finds many file paths), then double-click the value. They are taken into
 account on the next run of CalcMap.
 
-A company can provide its own aggregated catalog (its sources: france-odg, its
+A company can provide its own aggregated catalog (its sources: the ODG Atlas, its
 internal maps…). To change the sources later, publishing this catalog again at
 the same address is enough.
 
@@ -480,7 +482,11 @@ tests/headless/run.sh TestIconOnMap        # icon on a selected map: configurati
 tests/headless/run.sh TestSettings         # settings: default values, change
 tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja
 tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
+tests/headless/run.sh TestEuMap            # European Union map colored from ISO codes
 ```
+
+The tests use a local copy of the ODG Atlas, next to this repository
+(`../odg-atlas`, or the path in the `ODG_ATLAS` environment variable).
 
 Dialogs are not shown without a display: their controls are built, and clicks
 or typing are simulated by calling their listeners.

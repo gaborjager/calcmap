@@ -1,1 +1,1 @@
-Nuspalvina .odg pagrindo žemėlapį (projektas france-odg) pagal du „Calc“ stulpelius: kodas | reikšmė. Pagrindo žemėlapiai atsisiunčiami iš žemėlapių katalogo ir laikomi podėlyje; papildomos spalvų paletės.
+Nuspalvina .odg pagrindo žemėlapį (projektas odg-atlas) pagal du „Calc“ stulpelius: kodas | reikšmė. Pagrindo žemėlapiai atsisiunčiami iš žemėlapių katalogo ir laikomi podėlyje; papildomos spalvų paletės.

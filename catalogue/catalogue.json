@@ -1,12 +1,12 @@
 {
   "version": 1,
   "title": "CalcMap catalog",
-  "description": "Base map sources offered by CalcMap. Each source is a catalog of maps in the france-odg format (output/maps.json).",
+  "description": "Base map sources offered by CalcMap. Each source is a catalog of maps in the ODG Atlas format (output/maps.json).",
   "sources": [
     {
-      "id": "france-odg",
-      "title": "Maps of France (france-odg)",
-      "url": "https://raw.githubusercontent.com/gaborjager/france-odg/main/output/maps.json"
+      "id": "odg-atlas",
+      "title": "ODG Atlas",
+      "url": "https://raw.githubusercontent.com/gaborjager/odg-atlas/main/output/maps.json"
     }
   ]
 }

@@ -1,1 +1,1 @@
-Colorie un fond de carte .odg (projet france-odg) à partir de deux colonnes Calc : code | valeur. Fonds de carte téléchargés depuis le catalogue france-odg et conservés en cache ; palettes de couleurs au choix, extensibles.
+Colorie un fond de carte .odg (projet odg-atlas) à partir de deux colonnes Calc : code | valeur. Fonds de carte téléchargés depuis le catalogue odg-atlas et conservés en cache ; palettes de couleurs au choix, extensibles.

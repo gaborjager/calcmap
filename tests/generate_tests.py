@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates one test spreadsheet (.ods) per base map of the france-odg catalog.
+"""Generates one test spreadsheet (.ods) per base map of the ODG Atlas catalog.
 
 Usage:
     python3 tests/generate_tests.py                 # regions, departements, cantons, communes
@@ -21,7 +21,7 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-CATALOG_URL = "https://raw.githubusercontent.com/gaborjager/france-odg/refs/heads/main/output/maps.json"
+CATALOG_URL = "https://raw.githubusercontent.com/gaborjager/odg-atlas/refs/heads/main/output/maps.json"
 FOLDER = Path(__file__).resolve().parent
 DEFAULT = ["regions", "departements", "cantons", "communes"]
 

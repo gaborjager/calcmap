@@ -1,1 +1,1 @@
-Färglägger en .odg-baskarta (projektet france-odg) utifrån två kolumner i Calc: kod | värde. Baskartorna hämtas från en kartkatalog och sparas i cachen; utökningsbara färgpaletter.
+Färglägger en .odg-baskarta (projektet odg-atlas) utifrån två kolumner i Calc: kod | värde. Baskartorna hämtas från en kartkatalog och sparas i cachen; utökningsbara färgpaletter.

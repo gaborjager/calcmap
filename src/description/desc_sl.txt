@@ -1,1 +1,1 @@
-Pobarva osnovni zemljevid .odg (projekt france-odg) glede na dva stolpca v Calcu: koda | vrednost. Osnovni zemljevidi se prenesejo iz kataloga zemljevidov in shranijo v predpomnilnik; razširljive barvne palete.
+Pobarva osnovni zemljevid .odg (projekt odg-atlas) glede na dva stolpca v Calcu: koda | vrednost. Osnovni zemljevidi se prenesejo iz kataloga zemljevidov in shranijo v predpomnilnik; razširljive barvne palete.

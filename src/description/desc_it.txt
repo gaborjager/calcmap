@@ -1,1 +1,1 @@
-Colora una mappa di base .odg (progetto france-odg) a partire da due colonne di Calc: codice | valore. Le mappe di base vengono scaricate da un catalogo di mappe e memorizzate nella cache; tavolozze di colori estensibili.
+Colora una mappa di base .odg (progetto odg-atlas) a partire da due colonne di Calc: codice | valore. Le mappe di base vengono scaricate da un catalogo di mappe e memorizzate nella cache; tavolozze di colori estensibili.

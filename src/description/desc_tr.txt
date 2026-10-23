@@ -1,1 +1,1 @@
-Bir .odg temel haritasını (france-odg projesi) iki Calc sütununa göre renklendirir: kod | değer. Temel haritalar bir harita kataloğundan indirilir ve önbellekte saklanır; genişletilebilir renk paletleri.
+Bir .odg temel haritasını (odg-atlas projesi) iki Calc sütununa göre renklendirir: kod | değer. Temel haritalar bir harita kataloğundan indirilir ve önbellekte saklanır; genişletilebilir renk paletleri.

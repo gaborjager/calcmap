@@ -1,1 +1,1 @@
-Mewarnai peta dasar .odg (proyek france-odg) berdasarkan dua kolom Calc: kode | nilai. Peta dasar diunduh dari katalog peta dan disimpan di cache; palet warna dapat ditambah.
+Mewarnai peta dasar .odg (proyek odg-atlas) berdasarkan dua kolom Calc: kode | nilai. Peta dasar diunduh dari katalog peta dan disimpan di cache; palet warna dapat ditambah.

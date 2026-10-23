@@ -25,7 +25,7 @@ Function InsertMapT(aOpt As Variant, sPalette As String) As String
 	oSel = SelectedRange(oCalc.getSheets().getByIndex(0).getCellRangeByName("A1:C1048576"))
 	oRange = DataRange(oSel)
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
-	sUrl = ConvertToURL("/home/gabor/github/france-odg/output/departements-france.odg")
+	sUrl = ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/departements-france.odg")
 	oDoc = StarDesktop.loadComponentFromURL(sUrl, "_blank", 0, aProps())
 	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, Nothing)
 	ColorDocument(oDoc, oRange.getDataArray(), aPal, vT)
@@ -104,7 +104,7 @@ Sub TestTexts()
 	aPals = LoadPalettes()
 	oRange = DataRange(SelectedRange(oSheet.getCellRangeByName("A1:C1048576")))
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
-	oDoc = StarDesktop.loadComponentFromURL(ConvertToURL("/home/gabor/github/france-odg/output/departements-france.odg"), _
+	oDoc = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/departements-france.odg"), _
 		"_blank", 0, aProps())
 	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, oDoc)
 	ColorDocument(oDoc, oRange.getDataArray(), aPals(PaletteIndex(aPals, "jaune-rouge")), vT)
@@ -425,19 +425,19 @@ Function ListT(aMaps As Variant) As String
 End Function
 
 Sub TestCatalog()
-	Dim sTests As String, sFixtures As String, sFrance As String, s As String, aMaps As Variant, b As Boolean, i As Long
+	Dim sTests As String, sFixtures As String, sAtlas As String, s As String, aMaps As Variant, b As Boolean, i As Long
 	OpenLog()
 	On Error GoTo ErrT
 	LoadTexts()
 	WriteLog("TEST default settings: catalog=" & CatalogUrl() & " ; max zones=" & MaxZones())
 	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
 	sFixtures = ConvertToURL(Environ("CALCMAP_FIXTURES"))
-	sFrance = ConvertToURL("/home/gabor/github/france-odg/output")
-	' france-odg source: the project's catalog, previews as local files
-	s = Replace(ReadText(sFrance & "/maps.json"), "https://raw.githubusercontent.com/gaborjager/france-odg/main/output", sFrance)
-	WriteText(sTests & "/source-france.json", s)
+	sAtlas = ConvertToURL(Environ("CALCMAP_ATLAS"))
+	' ODG Atlas source: the project's catalog, maps and previews as local files
+	s = Replace(ReadText(sAtlas & "/output/maps.json"), "https://raw.githubusercontent.com/gaborjager/odg-atlas/main", sAtlas)
+	WriteText(sTests & "/source-atlas.json", s)
 	WriteText(sTests & "/source-company.json", Replace(Replace(ReadText(sFixtures & "/source-company.json"), _
-		"@TESTS@", sTests), "@FRANCEODG@", sFrance))
+		"@TESTS@", sTests), "@ATLAS@", sAtlas & "/output"))
 	WriteText(sTests & "/aggregate.json", Replace(ReadText(sFixtures & "/aggregate.json"), "@TESTS@", sTests))
 	SettingT("Catalog", sTests & "/aggregate.json")
 	SettingT("MaxZones", 200)
@@ -664,6 +664,49 @@ Sub TestOldNames()
 		If oSheet.getCellByPosition(0, i).getString() = "88" Then oSheet.getCellByPosition(1, i).setValue(500)
 	Next i
 	WriteLog("TEST partial update of 88 (" & nLastUpdate & " zone(s)): " & OldNamesT(oG))
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- European Union map
+' The 27 member states colored from ISO codes (a value per country), in Draw;
+' image eu-countries.png
+Sub TestEuMap()
+	Dim oCalc As Object, oSheet As Object, oRange As Object, oDoc As Object, aOpt As Variant, aPals As Variant
+	Dim aCodes As Variant, i As Integer, n As Long, vT As Variant, oFilter As Object
+	Dim aProps(0) As New com.sun.star.beans.PropertyValue, aArgs(1) As New com.sun.star.beans.PropertyValue
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	oCalc.getSheets().insertNewByName("EU", 1)
+	oSheet = oCalc.getSheets().getByName("EU")
+	aCodes = Split("AT BE BG CY CZ DE DK EE ES FI FR GR HR HU IE IT LT LU LV MT NL PL PT RO SE SI SK", " ")
+	oSheet.getCellByPosition(0, 0).setString("Country")
+	oSheet.getCellByPosition(1, 0).setString("Value")
+	For i = 0 To UBound(aCodes)
+		oSheet.getCellByPosition(0, i + 1).setString(aCodes(i))
+		oSheet.getCellByPosition(1, i + 1).setValue((i * 37) Mod 100)
+	Next i
+	oRange = oSheet.getCellRangeByName("A1:B28")
+	aProps(0).Name = "Hidden" : aProps(0).Value = True
+	oDoc = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/eu-countries.odg"), _
+		"_blank", 0, aProps())
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LEGEND) = True : aOpt(O_COL_LABEL) = 0
+	aPals = LoadPalettes()
+	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, oDoc)
+	n = ColorDocument(oDoc, oRange.getDataArray(), aPals(PaletteIndex(aPals, "viridis")), vT)
+	WriteLog("TEST EU map: " & n & " zones colored out of " & (UBound(aCodes) + 1))
+	oFilter = CreateUnoService("com.sun.star.drawing.GraphicExportFilter")
+	oFilter.setSourceDocument(oDoc.getDrawPages().getByIndex(0))
+	aArgs(0).Name = "URL" : aArgs(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/eu-countries.png")
+	aArgs(1).Name = "MediaType" : aArgs(1).Value = "image/png"
+	oFilter.filter(aArgs())
+	oDoc.close(True)
 	CloseLog()
 	Exit Sub
 ErrT:

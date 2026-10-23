@@ -1,1 +1,1 @@
-Colore um mapa base .odg (projeto france-odg) a partir de duas colunas do Calc: código | valor. Os mapas base são transferidos de um catálogo de mapas e guardados em cache; paletas de cores extensíveis.
+Colore um mapa base .odg (projeto odg-atlas) a partir de duas colunas do Calc: código | valor. Os mapas base são transferidos de um catálogo de mapas e guardados em cache; paletas de cores extensíveis.

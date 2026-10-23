@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.20.1 - 2026-10-23
+
+- The base maps now come from the ODG Atlas project (formerly france-odg),
+  which adds a map of the 27 countries of the European Union (ISO 3166-1
+  alpha-2 codes, e.g. FR, DE). Map titles follow the interface language
+  when the catalog translates them.
+
 ## 0.20.0 - 2026-10-23
 
 - The project is now in English: code, comments, log messages, README and
