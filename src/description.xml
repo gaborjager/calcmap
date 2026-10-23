@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <description xmlns="http://openoffice.org/extensions/description/2006" xmlns:xlink="http://www.w3.org/1999/xlink">
  <identifier value="fr.github.gaborjager.calcmap"/>
- <version value="0.16.0"/>
+ <version value="0.17.0"/>
  <display-name>
   <name lang="ar">CalcMap – خرائط موضوعية لـ Calc</name>
   <name lang="bg">CalcMap – тематични карти за Calc</name>

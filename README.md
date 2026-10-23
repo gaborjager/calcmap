@@ -32,10 +32,13 @@ code INSEE dans son nom.
 > (et à terme une carte des pays du monde). Les cantons (2 306 zones) et les
 > communes (35 191) sont écartés.
 
-Le dialogue est organisé en cadres : **Carte** (fond de carte, son aperçu,
-insertion dans la feuille), **Code** (colonne, et à droite des exemples de codes
-de la carte pour comparer), **Valeurs** (colonne, couleurs et classes, affichage
-des valeurs), **Libellés** (colonne, affichage) et **Légende**.
+Le dialogue est organisé en cadres : en haut **Carte** (fond de carte, son
+aperçu, insertion dans la feuille) et **Légende** ; dessous, côte à côte comme
+les colonnes à choisir, **Code** (colonne, et des exemples de codes de la carte
+pour comparer), **Valeurs** (colonne, couleurs et classes, affichage des
+valeurs) et **Libellés** (colonne, affichage). Devant les codes de la carte, une
+coche verte indique qu'ils se trouvent tous dans la colonne du code choisie ;
+sinon un petit triangle signale ceux qui manquent (infobulle).
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu

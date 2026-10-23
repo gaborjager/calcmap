@@ -33,6 +33,8 @@ FICHIERS = [
     "icons/carte_16.png",
     "icons/carte_26.png",
     "icons/nopreview.svg",
+    "icons/codes-ok.svg",
+    "icons/codes-attention.svg",
     "palettes.json",
     "CalcMap.xcs",
 ]

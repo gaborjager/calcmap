@@ -562,3 +562,54 @@ ErrT:
 	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
 	Resume Next
 End Sub
+
+' ---------------------------------------------------------------- picto des codes, géométrie
+' Codes de la carte cherchés dans la colonne du code : coche, puis triangle
+' quand une autre colonne est choisie ; contrôles dans le dialogue, sans
+' chevauchement hors des cadres
+Sub TestPictoCodes()
+	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, oPlage As Object
+	Dim oImg As Object, aCtrl As Variant, i As Integer, j As Integer, a As Object, b As Object, n As Integer
+	OuvrirJournal()
+	On Error GoTo ErrT
+	ChargerTextes()
+	aPals = ChargerPalettes()
+	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDonneesDialogue = oPlage.getDataArray()
+	aOpt = OptionsParDefaut()
+	bI = True
+	bGarderDialogue = True
+	n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True, 101, "", "", "", "01, 02, 2A, 2B")), _
+		aPals, "etat", "", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
+	oImg = oDialogue.getControl("imgCodes")
+	Journal("TEST picto code : visible=" & oImg.isVisible() & " aide=" & oImg.getModel().HelpText)
+	oDialogue.getControl("lstCode").selectItemPos(2, True)
+	ListeCode_itemStateChanged(Nothing)
+	Journal("TEST picto nom : aide=" & oImg.getModel().HelpText)
+	n = 0
+	aCtrl = oDialogue.getModel().getControlModels()
+	For i = 0 To UBound(aCtrl)
+		a = aCtrl(i)
+		If a.PositionX + a.Width > oDialogue.getModel().Width Or a.PositionY + a.Height > oDialogue.getModel().Height Then
+			Journal("TEST geometrie hors dialogue : " & a.Name) : n = n + 1
+		End If
+		For j = i + 1 To UBound(aCtrl)
+			b = aCtrl(j)
+			' Cadres, titre (à la place de la liste) et nuances inutilisées (cachées) exclus
+			If InStr(a.Name & b.Name, "grp") = 0 And InStr(a.Name & b.Name, "lblTitreCarte") = 0 And _
+				Not (Left(a.Name, 6) = "nuance" And Left(b.Name, 6) = "nuance") And _
+				a.PositionX < b.PositionX + b.Width And b.PositionX < a.PositionX + a.Width And _
+				a.PositionY < b.PositionY + b.Height And b.PositionY < a.PositionY + a.Height Then
+				Journal("TEST geometrie chevauchement : " & a.Name & " / " & b.Name) : n = n + 1
+			End If
+		Next j
+	Next i
+	Journal("TEST geometrie : " & (UBound(aCtrl) + 1) & " controles, " & n & " probleme(s)")
+	bGarderDialogue = False
+	oDialogue.dispose()
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub
