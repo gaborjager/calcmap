@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Paramètres de CalcMap, dans la configuration de LibreOffice :
-     /fr.github.gaborjager.CalcMap/Parametres. Modifiables par l'utilisateur
-     (Outils > Options > Avancé > Ouvrir la configuration avancée, chercher
-     « CalcMap ») ou imposés par un administrateur (fichier .xcu déployé). -->
+<!-- CalcMap settings, in the LibreOffice configuration:
+     /fr.github.gaborjager.CalcMap/Settings. Can be changed by the user
+     (Tools > Options > Advanced > Open Expert Configuration, search for
+     "CalcMap") or enforced by an administrator (deployed .xcu file). -->
 <oor:component-schema xmlns:oor="http://openoffice.org/2001/registry"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     oor:name="CalcMap" oor:package="fr.github.gaborjager" xml:lang="en-US">
  <templates/>
  <component>
-  <group oor:name="Parametres">
-   <!-- Catalogue agrégé (liste de sources) ou catalogue de cartes, en https:// ou file:/// -->
-   <prop oor:name="Catalogue" oor:type="xs:string">
+  <group oor:name="Settings">
+   <!-- Aggregated catalog (list of sources) or catalog of maps, as https:// or file:/// -->
+   <prop oor:name="Catalog" oor:type="xs:string">
     <value>https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json</value>
    </prop>
-   <!-- Cartes proposées : au plus ce nombre de zones (300 : carte des pays du monde) -->
-   <prop oor:name="ZonesMax" oor:type="xs:int">
+   <!-- Maps offered: at most this number of zones (300: world countries map) -->
+   <prop oor:name="MaxZones" oor:type="xs:int">
     <value>300</value>
    </prop>
   </group>

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "maps": [
+    {"id": "secteurs", "title": "Sales areas", "description": "Internal map",
+     "url": "@TESTS@/secteurs.odg", "filename": "secteurs.odg", "size": 1000, "sha256": "",
+     "objects": 12, "preview": "@FRANCEODG@/previews/regions.svg", "preview_sha256": "0000wrong"},
+    {"id": "departements", "title": "Duplicate", "description": "Same id as a france-odg map",
+     "url": "@TESTS@/other.odg", "filename": "other.odg", "size": 1, "sha256": "", "objects": 96}
+  ]
+}

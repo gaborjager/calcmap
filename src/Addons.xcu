@@ -41,17 +41,17 @@
    <node oor:name="fr.github.gaborjager.calcmap.img" oor:op="replace">
     <prop oor:name="URL"><value>vnd.sun.star.script:CalcMap.CalcMap.CalcMap?language=Basic&amp;location=application</value></prop>
     <node oor:name="UserDefinedImages">
-     <prop oor:name="ImageSmallURL"><value>%origin%/icons/carte_16.png</value></prop>
-     <prop oor:name="ImageBigURL"><value>%origin%/icons/carte_26.png</value></prop>
+     <prop oor:name="ImageSmallURL"><value>%origin%/icons/map_16.png</value></prop>
+     <prop oor:name="ImageBigURL"><value>%origin%/icons/map_26.png</value></prop>
     </node>
    </node>
-   <!-- Entrée « Configuration de la carte… » du menu contextuel (ajoutée par
-        IntercepterMenu) : LibreOffice reprend l'icône associée à son URL -->
+   <!-- "Map settings…" entry of the context menu (added by
+        InterceptMenu): LibreOffice uses the icon associated with its URL -->
    <node oor:name="fr.github.gaborjager.calcmap.img.config" oor:op="replace">
-    <prop oor:name="URL"><value>vnd.sun.star.script:CalcMap.CalcMap.ConfigurerCarte?language=Basic&amp;location=application</value></prop>
+    <prop oor:name="URL"><value>vnd.sun.star.script:CalcMap.CalcMap.ConfigureMap?language=Basic&amp;location=application</value></prop>
     <node oor:name="UserDefinedImages">
-     <prop oor:name="ImageSmallURL"><value>%origin%/icons/carte_16.png</value></prop>
-     <prop oor:name="ImageBigURL"><value>%origin%/icons/carte_26.png</value></prop>
+     <prop oor:name="ImageSmallURL"><value>%origin%/icons/map_16.png</value></prop>
+     <prop oor:name="ImageBigURL"><value>%origin%/icons/map_26.png</value></prop>
     </node>
    </node>
   </node>

@@ -1,8 +1,8 @@
-"""Pilote LibreOffice sans écran : ouvre un classeur, lance une macro de test
-de l'extension, exporte en PNG la 1re forme de la 1re feuille (s'il y en a).
+"""Drives LibreOffice without a display: opens a spreadsheet, runs a test macro
+of the extension, exports the 1st shape of the 1st sheet as PNG (if any).
 
-Usage : python3 pilote.py <profil> <classeur.ods> <macro> <image.png> [port]
-(appelé par lancer.sh)
+Usage: python3 driver.py <profile> <spreadsheet.ods> <macro> <image.png> [port]
+(called by run.sh)
 """
 import subprocess
 import sys
@@ -12,16 +12,16 @@ import uno
 from com.sun.star.beans import PropertyValue
 
 
-def prop(nom, valeur):
+def prop(name, value):
     p = PropertyValue()
-    p.Name = nom
-    p.Value = valeur
+    p.Name = name
+    p.Value = value
     return p
 
 
-profil, classeur, macro, image = sys.argv[1:5]
+profile, spreadsheet, macro, image = sys.argv[1:5]
 port = sys.argv[5] if len(sys.argv) > 5 else "2120"
-proc = subprocess.Popen(["soffice", f"-env:UserInstallation=file://{profil}", "--headless", "--norestore",
+proc = subprocess.Popen(["soffice", f"-env:UserInstallation=file://{profile}", "--headless", "--norestore",
                          f"--accept=socket,host=localhost,port={port};urp;"])
 desk = None
 try:
@@ -35,8 +35,8 @@ try:
             time.sleep(1)
     smgr = rctx.ServiceManager
     desk = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", rctx)
-    # MacroExecutionMode 4 : comme une ouverture normale (événement « Ouvrir le document »)
-    doc = desk.loadComponentFromURL(uno.systemPathToFileUrl(classeur), "_blank", 0,
+    # MacroExecutionMode 4: like a normal opening ("Open Document" event)
+    doc = desk.loadComponentFromURL(uno.systemPathToFileUrl(spreadsheet), "_blank", 0,
                                     (prop("MacroExecutionMode", 4),))
     sp = smgr.createInstanceWithContext("com.sun.star.script.provider.MasterScriptProviderFactory",
                                         rctx).createScriptProvider("")

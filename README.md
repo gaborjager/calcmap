@@ -1,485 +1,502 @@
-# CalcMap — cartes thématiques pour LibreOffice Calc
+# CalcMap - thematic maps for LibreOffice Calc
 
-**CalcMap** est une extension LibreOffice qui colorie un fond de carte `.odg` à partir de deux colonnes
-d'un classeur Calc : **code | valeur**. Elle utilise les fonds de carte du projet
-[france-odg](https://github.com/gaborjager/france-odg), où chaque zone porte son
-code INSEE dans son nom.
+**CalcMap** is a LibreOffice extension that colors a `.odg` base map from two columns
+of a Calc spreadsheet: **code | value**. It uses the base maps of the
+[france-odg](https://github.com/gaborjager/france-odg) project, where each zone carries
+its INSEE code in its name, and any other base map built the same way.
 
-## Utilisation
+## Usage
 
-1. Dans Calc, sélectionner les données, en-têtes compris : par défaut code en
-   1re colonne, valeur en 2e, libellé (facultatif) en 3e. Si deux colonnes
-   seulement sont sélectionnées, la suivante est proposée comme libellé. On peut
-   sélectionner des colonnes entières.
-2. Cliquer sur l'icône **globe** de la barre d'outils (ou **Outils → CalcMap : colorier une carte…**).
-3. Choisir le fond de carte dans la liste déroulante (régions, départements),
-   ou un autre fichier `.odg` avec **Autre fichier…**.
-4. Choisir la palette de couleurs (un aperçu s'affiche à côté de la liste), et
-   au besoin personnaliser les classes avec **Classes…** (voir ci-dessous).
-5. Vérifier les colonnes du **code**, des **valeurs** et des **libellés** : chaque
-   liste propose les colonnes sélectionnées, avec leur en-tête et leurs premières
-   valeurs (suivies de « , ... » si la colonne continue) (ex. « D — Taux : 12,5, 8,1, 9,7 »).
-6. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
-   dans la feuille, ou la décocher pour l'ouvrir dans Draw.
-7. Cocher **Afficher les valeurs** et/ou **Afficher les libellés**
-   pour écrire la valeur et/ou le libellé de chaque zone sur la carte, et choisir
-   leur taille, leur police et leur style (voir ci-dessous).
-8. Cocher **Afficher la légende**, **avec les valeurs** (bornes de chaque classe)
-   ou sans.
+1. In Calc, select the data, headers included: by default code in the 1st
+   column, value in the 2nd, label (optional) in the 3rd. If only two columns
+   are selected, the next one is offered as the label. Whole columns can be
+   selected.
+2. Click the **globe** icon on the toolbar (or **Tools → CalcMap: color a map…**).
+3. Choose the base map in the drop-down list (regions, departments), or another
+   `.odg` file with **Other file…**.
+4. Choose the color palette (a preview is shown below the list), and if needed
+   customize the classes with **Classes…** (see below).
+5. Check the **code**, **values** and **labels** columns: each list offers the
+   selected columns, with their header and first values (followed by ", ..."
+   if the column goes on) (e.g. "D - Rate: 12.5, 8.1, 9.7, ...").
+6. Leave **Insert the map into the Calc sheet** checked to place the map in the
+   sheet, or uncheck it to open the map in Draw.
+7. Check **Show the values** and/or **Show the labels** to write the value and/or the
+   label of each zone on the map, and choose their size, font and style (see
+   below).
+8. Check **Show the legend**, **with the values** (bounds of each class) or without.
 
-> Seules les cartes d'au plus **300 zones** sont proposées (paramètre `ZonesMax`,
-> voir *Paramètres*) : avec le catalogue actuel, les régions et les départements
-> (et à terme une carte des pays du monde). Les cantons (2 306 zones) et les
-> communes (35 191) sont écartés.
+> Only maps with at most **300 zones** are offered (`MaxZones` setting, see
+> *Settings*): with the current catalog, the regions and the departments (and
+> later a map of the world's countries). Cantons (2,306 zones) and
+> municipalities (35,191) are left out.
 
-Le dialogue est organisé en cadres : en haut **Carte** (fond de carte, son
-aperçu, insertion dans la feuille) ; dessous, côte à côte comme les colonnes à
-choisir, **Code** (colonne, et des exemples de codes de la carte pour
-comparer), **Valeurs** (colonne, couleurs et classes, affichage des valeurs) et
-**Libellés** (colonne, affichage) ; tout en bas **Légende**. Devant les codes de la carte, une
-coche verte indique qu'ils se trouvent tous dans la colonne du code choisie ;
-sinon un petit triangle signale ceux qui manquent (infobulle).
+The dialog is organized in frames: at the top **Map** (base map, its preview,
+insertion in the sheet); below, side by side like the columns to choose,
+**Code** (column, and examples of the map's codes to compare), **Values**
+(column, colors and classes, display of the values) and **Labels** (column,
+display); at the very bottom **Legend**. In front of the map's codes, a green
+tick shows that they are all in the chosen code column; otherwise a small
+triangle points out the missing ones (tooltip).
 
-La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
-classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
-pour les palettes « dégradé continu ». Les zones sans
-donnée restent en gris. La dernière carte et la dernière palette choisies sont
-proposées par défaut à l'exécution suivante.
+The map opens in Draw, colored in equal-interval classes (as many classes as
+the palette has colors: 5, 7 or 10), or as a continuous gradient for the
+"continuous gradient" palettes. Zones without data stay grey. The last map and
+the last palette chosen are offered by default on the next run.
 
-## Carte insérée dans la feuille Calc
+The user interface is translated into 34 languages (see *Languages*); the
+examples below use the English one.
 
-Case cochée (par défaut), la carte coloriée est placée dans la feuille, à droite
-du bloc de données sélectionné, après une colonne vide, sur 16 cm de large.
-Elle est ancrée à sa cellule.
+## Map inserted in the Calc sheet
 
-- **Jusqu'à 5 000 zones** (régions, départements) : les zones sont
-  recréées dans la feuille et groupées. Chaque zone garde sa couleur et son texte
-  alternatif (`22 - Côtes-d'Armor - Valeur : 666`). Pour la consulter : double-clic
-  sur la carte pour entrer dans le groupe, puis clic droit sur une zone →
-  *Texte alternatif*.
-- **Au-delà** (fond de carte choisi avec *Autre fichier…*) : la carte est insérée
-  comme **image** PNG. Les valeurs par zone ne sont alors pas consultables sur la
-  carte ; décocher la case pour ouvrir la carte dans Draw si besoin.
+When the box is checked (default), the colored map is placed in the sheet, to
+the right of the selected data block, after an empty column, 16 cm wide. It is
+anchored to its cell.
 
-Le choix de la case est mémorisé.
+- **Up to 5,000 zones** (regions, departments): the zones are recreated in the
+  sheet and grouped. Each zone keeps its color and its alternative text
+  (`22 - Côtes-d'Armor - Value: 666`). To read it: double-click the map to
+  enter the group, then right-click a zone → *Alt Text*.
+- **Beyond that** (base map chosen with *Other file…*): the map is inserted as a
+  PNG **image**. The values per zone cannot be read on the map then; uncheck
+  the box to open the map in Draw if needed.
 
-### Valeurs et libellés sur la carte
+The state of the box is remembered.
 
-Deux cases du dialogue écrivent du texte au centre de chaque zone, dans la carte
-insérée comme dans Draw : **Afficher les libellés** (libellé sur la 1re ligne) et
-**Afficher les valeurs** (valeur en dessous).
+### Values and labels on the map
 
-- La valeur est au **format de nombre de la colonne Calc** (décimales,
-  pourcentage, séparateur de milliers…) : formater la colonne des valeurs avant
-  de lancer la commande. Le libellé est repris tel qu'il s'affiche.
-- Le texte est noir sur les couleurs claires, blanc sur les couleurs foncées.
-- À côté de chaque case, comme dans la barre de formatage : la **police**
-  (Liberation Sans par défaut), la **taille** (10 pt par défaut, de 2 à 72),
-  choisies dans la liste ou saisies, et les boutons **G** (gras), *I* (italique),
-  S (souligné). La taille vaut pour la carte insérée dans Calc (16 cm de large) ;
-  dans Draw, elle est adaptée pour garder le même aspect.
-- Une zone sans valeur n'affiche que son libellé.
-- **Contour blanc ou noir** (une case sous chaque ligne, cochée par défaut) :
-  texte noir cerné de blanc, texte blanc cerné de noir, lisible sur toutes les
-  couleurs ; réglable séparément pour les valeurs et pour les libellés. Le
-  contour est fait de copies du texte décalées tout autour : une mise à jour
-  complète prend alors 3 s environ pour les départements, au lieu de 0,6 s.
+Two boxes of the dialog write text in the center of each zone, in the inserted
+map as in Draw: **Show the labels** (label on the 1st line) and **Show the values**
+(value below).
 
-Valeurs et libellés suivent la mise à jour automatique (un libellé modifié est
-aussi repris). Au-delà de 5 000 zones, aucun texte n'est
-affiché (trop long à créer et illisible). Les textes sont des formes séparées,
-placées au-dessus de toutes les zones : une zone voisine ne les masque jamais.
-Dans les petites zones (Paris et sa petite couronne), ils peuvent se chevaucher. Les choix sont mémorisés ; les deux cases sont décochées par défaut.
+- The value uses the **number format of the Calc column** (decimals,
+  percentage, thousands separator…): format the values column before running
+  the command. The label is used as displayed.
+- The text is black on light colors, white on dark colors.
+- Below each box, as on the formatting toolbar: the **font** (Liberation Sans
+  by default) and the **size** (10 pt by default, from 2 to 72), chosen in the
+  list or typed in, then the **B** (bold), *I* (italic) and U (underline)
+  buttons. The size applies to the map inserted in Calc (16 cm wide); in Draw,
+  it is adapted to keep the same look.
+- A zone without a value only shows its label.
+- **White or black outline** (a box under each row, checked by default): black
+  text circled in white, white text circled in black, readable on all colors;
+  set separately for the values and for the labels. The outline is made of
+  copies of the text offset all around: a full update then takes about 3 s for
+  the departments, instead of 0.6 s.
 
-### Légende
+Values and labels follow the automatic update (a changed label is also taken
+into account). Beyond 5,000 zones, no text is shown (too long to create and
+unreadable). The texts are separate shapes, placed above all the zones: a
+neighboring zone never hides them. In small zones (Paris and its inner
+suburbs), they may overlap. The choices are remembered; both boxes are
+unchecked by default.
 
-Case **Afficher la légende** cochée, une légende est placée à droite de la
-carte : une case de couleur par classe (5 nuances pour un dégradé continu), et
-une case « Sans donnée » si des zones n'ont pas de valeur.
+### Legend
 
-- **avec les valeurs** : chaque case porte les bornes de sa classe
-  (`20 – 411,2`), au format de la colonne des valeurs, et la légende a pour titre
-  l'en-tête de cette colonne ; sinon, seules les couleurs sont affichées.
-- Le texte reprend la police et la taille des valeurs.
-- Dans Calc, la légende fait partie de la carte : elle se déplace avec elle et
-  se met à jour avec elle.
+With **Show the legend** checked, a legend is placed to the right of the map: one
+color box per class (5 shades for a continuous gradient), and a "No data" box
+if some zones have no value.
 
-### Configuration d'une carte insérée
+- **with the values**: each box shows the bounds of its class (`20 – 411.2`), in
+  the format of the values column, and the legend's title is the header of
+  that column; otherwise, only the colors are shown.
+- The text uses the font and size of the values.
+- In Calc, the legend is part of the map: it moves with it and is updated with
+  it.
 
-**Clic droit sur la carte → Configuration de la carte…**, ou l'**icône globe**
-quand la carte (ou une de ses zones) est sélectionnée, rouvre le dialogue pour
-cette carte : palette, colonnes, valeurs, libellés, légende. La carte est
-recoloriée dès la validation, et ces choix (sauf les colonnes, propres à chaque
-tableau) servent aussi de point de départ pour la carte suivante. Le fond de carte ne peut pas être changé (insérer une nouvelle carte).
-Le menu fonctionne aussi sur une zone, après un double-clic pour entrer dans la
-carte.
+### Settings of an inserted map
 
-### Mise à jour automatique
+**Right-click on the map → Map settings…**, or the **globe icon** when the
+map (or one of its zones) is selected, reopens the dialog for this map:
+palette, columns, values, labels, legend. The map is recolored as soon as the
+dialog is confirmed, and these choices (except the columns, specific to each
+table) also become the starting point for the next map. The base map cannot be
+changed (insert a new map instead). The menu also works on a zone, after a
+double-click to enter the map.
 
-Une carte insérée dans la feuille reste **liée à ses données** : dès qu'une
-valeur change (saisie, collage, résultat de formule recalculé), la carte est
-mise à jour, avec les mêmes réglages.
+### Automatic update
 
-- En général, **seules les zones modifiées** sont refaites (couleur, texte
-  alternatif, valeur et libellé affichés) : 0,3 s environ pour un département,
-  contour compris.
-- **Toute la carte** est refaite quand la modification touche toute la carte :
-  nouveau minimum ou maximum (les classes linéaires bougent), zone qui gagne ou
-  perd sa valeur (ligne « Sans donnée » de la légende), en-tête de la colonne
-  des valeurs (titre de la légende), plus de 20 zones changées à la fois, ou
-  nouveaux réglages (*Configuration de la carte…*). Pour une carte insérée en
-  image, l'image est régénérée.
+A map inserted in the sheet stays **linked to its data**: as soon as a value
+changes (typed, pasted, formula result recalculated), the map is updated, with
+the same settings.
 
-- Le lien est enregistré dans le classeur : une plage nommée `CalcMap_1`
-  (`_2`, … pour d'autres cartes) sur les deux colonnes sélectionnées, et une
-  propriété du document du même nom (*Fichier → Propriétés → Propriétés
-  personnalisées*). La plage nommée suit les insertions de lignes ; sélectionner
-  des colonnes entières (A:B) prend aussi en compte les lignes ajoutées en bas.
-- À l'ouverture du classeur, l'extension reconnecte ses cartes (événement
-  « Ouvrir le document », déclaré dans `Events.xcu`). Sans l'extension installée,
-  le classeur s'ouvre normalement ; la carte reste simplement figée.
-- Le recoloriage n'entre pas dans l'historique : *Annuler* annule la saisie, et
-  l'insertion de la carte est une seule étape d'annulation.
-- Pour rompre le lien : supprimer la carte de la feuille (le lien est retiré à la
-  modification suivante), ou supprimer la plage nommée `CalcMap_N`.
+- Usually, **only the changed zones** are redone (color, alternative text,
+  value and label shown): about 0.3 s for one department, outline included.
+- **The whole map** is redone when the change affects the whole map: new
+  minimum or maximum (the linear classes move), zone that gains or loses its
+  value ("No data" row of the legend), header of the values column (legend
+  title), more than 20 zones changed at once, or new settings (*Map
+  settings…*). For a map inserted as an image, the image is regenerated.
+- The link is saved in the spreadsheet: a named range `CalcMap_1` (`_2`, … for
+  other maps) on the selected columns, and a document property of the same
+  name (*File → Properties → Custom Properties*). The named range follows row
+  insertions; selecting whole columns (A:B) also takes rows added at the bottom
+  into account.
+- When the spreadsheet is opened, the extension reconnects its maps ("Open
+  Document" event, declared in `Events.xcu`). Without the extension installed,
+  the spreadsheet opens normally; the map simply stays frozen.
+- Recoloring does not go into the undo history: *Undo* undoes the input, and
+  inserting the map is a single undo step.
+- To break the link: delete the map from the sheet (the link is removed on the
+  next change), or delete the named range `CalcMap_N`.
 
-> L'extension occupe l'événement global « Ouvrir le document »
-> (*Outils → Personnaliser → Événements*, « Enregistrer dans : LibreOffice »). Si
-> une autre macro y était déjà associée, elle est remplacée.
+> The extension uses the global "Open Document" event (*Tools → Customize →
+> Events*, "Save in: LibreOffice"). If another macro was already assigned to
+> it, it is replaced.
 
-## Palettes de couleurs
+## Color palettes
 
-Palettes fournies (d'après ColorBrewer et viridis) :
+Palettes provided (based on ColorBrewer and viridis):
 
 | Type | Palettes |
 |---|---|
-| 5 classes | bleus, verts, rouges, oranges, violets, gris, jaune → rouge, viridis (lisible par les daltoniens), divergentes rouge ↔ bleu et brun ↔ vert |
-| 7 classes | bleus |
-| 10 classes | bleus, verts, jaune → rouge, viridis, divergentes rouge ↔ bleu et spectrale |
-| Dégradé continu | bleus, jaune → rouge, viridis, gris, divergente rouge ↔ bleu |
+| 5 classes | blues, greens, reds, oranges, purples, greys, yellow → red, viridis (colorblind-safe), diverging red ↔ blue and brown ↔ green |
+| 7 classes | blues |
+| 10 classes | blues, greens, yellow → red, viridis, diverging red ↔ blue and spectral |
+| Continuous gradient | blues, yellow → red, viridis, greys, diverging red ↔ blue |
 
-En **dégradé continu**, il n'y a pas de classes : chaque zone reçoit une couleur
-interpolée selon sa valeur exacte, entre le minimum (première couleur) et le
-maximum (dernière couleur). Les couleurs intermédiaires de la palette sont des
-étapes du dégradé (utile pour une palette divergente : bas → milieu → haut).
+With a **continuous gradient**, there are no classes: each zone gets a color
+interpolated from its exact value, between the minimum (first color) and the
+maximum (last color). The palette's intermediate colors are steps of the
+gradient (useful for a diverging palette: low → middle → high).
 
-### Classes personnalisées
+### Custom classes
 
-Par défaut, les valeurs sont réparties en classes d'intervalles égaux, une par
-couleur de la palette. Le bouton **Classes…** (à droite de la palette) ouvre
-l'éditeur de classes, sur les données de la colonne des valeurs choisie :
+By default, the values are split into equal-interval classes, one per palette
+color. The **Classes…** button (next to the palette) opens the classes editor,
+on the data of the chosen values column:
 
-- **Nombre de classes** (flèches ou saisie, de 2 à 20) : les classes sont
-  réparties à intervalles égaux, couleurs de la palette étirées en dégradé ;
-- une **barre de couleurs** à l'échelle des valeurs : **glisser** un séparateur
-  vers la gauche ou la droite déplace la borne entre deux classes (elle reste
-  entre ses voisines) ; la valeur de chaque borne est affichée dessous ;
-  **cliquer** sur une couleur ouvre le sélecteur de couleur ;
-- chaque case affiche son **nombre de zones**, et sous la barre un trait par
-  valeur montre où se concentrent les données ; la liste de droite donne toutes
-  les valeurs triées, avec le libellé de chaque zone ;
-- **Borne sélectionnée** : la valeur exacte du dernier séparateur touché, à
-  saisir au clavier ;
-- **Répartition linéaire** remet des intervalles égaux, en gardant le nombre de
-  classes et les couleurs.
+- **Number of classes** (arrows or typed, from 2 to 20): the classes are
+  spread at equal intervals, the palette colors stretched into a gradient;
+- a **color bar** scaled to the values: **dragging** a separator left or right
+  moves the bound between two classes (it stays between its neighbors); the
+  value of each bound is shown below; **clicking** a color opens the color
+  picker;
+- each box shows its **number of zones**, and under the bar one tick per value
+  shows where the data are; the list on the right gives all the sorted values,
+  with the label of each zone;
+- **Selected bound**: the exact value of the last separator touched, to type
+  on the keyboard;
+- **Equal intervals** restores equal intervals, keeping the number of
+  classes and the colors.
 
-Les classes couvrent toujours toutes les valeurs (du minimum au maximum). Elles
-sont gardées avec la carte (mise à jour automatique, légende, *Configuration de
-la carte…*), mais pas pour la carte suivante. Choisir une autre palette remplace
-les classes personnalisées.
+The classes always cover all the values (from the minimum to the maximum).
+They are kept with the map (automatic update, legend, *Map settings…*),
+but not for the next map. Choosing another palette replaces the custom
+classes.
 
-**Ajouter ses palettes**, sans reconstruire l'extension : créer un fichier
-`palettes.json` dans le dossier du cache (voir ci-dessous). Ses palettes s'ajoutent
-à la liste ; une palette de même `id` qu'une palette fournie la remplace.
+**Adding your own palettes**, without rebuilding the extension: create a
+`palettes.json` file in the cache folder (see below). Its palettes are added
+to the list; a palette with the same `id` as a provided one replaces it.
 
 ```json
 {
   "palettes": [
-    { "id": "ma-palette",
-      "name": { "fr": "Ma palette", "en": "My palette" },
+    { "id": "my-palette",
+      "name": { "en": "My palette", "fr": "Ma palette" },
       "colors": ["#fff5eb", "#fdae6b", "#e6550d", "#7f2704"],
       "nodata": "#ffffff" },
-    { "id": "mon-degrade",
-      "name": "Mon dégradé",
+    { "id": "my-gradient",
+      "name": "My gradient",
       "continuous": true,
       "colors": ["#ffffff", "#006d2c"] }
   ]
 }
 ```
 
-- `colors` : de la plus petite à la plus grande valeur, 2 couleurs au moins,
-  au format `#rrggbb`. Leur nombre donne le nombre de classes.
-- `name` : texte simple, ou un texte par langue (repli sur `en`, puis sur `id`).
-- `nodata` (facultatif) : couleur des zones sans donnée, gris clair par défaut.
-- `continuous` (facultatif) : `true` pour un dégradé continu ; les couleurs sont
-  alors les étapes du dégradé et non des classes.
+- `colors`: from the smallest to the largest value, at least 2 colors, as
+  `#rrggbb`. Their number gives the number of classes.
+- `name`: plain text, or one text per language (fallback to `en`, then to `id`).
+- `nodata` (optional): color of the zones without data, light grey by default.
+- `continuous` (optional): `true` for a continuous gradient; the colors are
+  then the steps of the gradient and not classes.
 
-Une palette mal formée est ignorée et signalée dans le journal. Les palettes de
-l'extension sont dans `src/palettes.json`.
+A malformed palette is skipped and reported in the log. The extension's
+palettes are in `src/palettes.json`.
 
-## Langues
+## Languages
 
-L'interface suit la langue de LibreOffice (code à deux lettres). 34 langues
-sont fournies :
+The interface follows the LibreOffice language (two-letter code). 34 languages
+are provided:
 
-- les 24 langues officielles de l'Union européenne : allemand (`de`), anglais
-  (`en`), bulgare (`bg`), croate (`hr`), danois (`da`), espagnol (`es`), estonien
-  (`et`), finnois (`fi`), français (`fr`), grec (`el`), hongrois (`hu`), irlandais
-  (`ga`), italien (`it`), letton (`lv`), lituanien (`lt`), maltais (`mt`),
-  néerlandais (`nl`), polonais (`pl`), portugais (`pt`), roumain (`ro`), slovaque
-  (`sk`), slovène (`sl`), suédois (`sv`), tchèque (`cs`) ;
-- d'autres langues très parlées : arabe (`ar`), chinois simplifié (`zh`), coréen
-  (`ko`), hindi (`hi`), indonésien (`id`), japonais (`ja`), norvégien bokmål
-  (`nb`), russe (`ru`), turc (`tr`), ukrainien (`uk`).
+- the 24 official languages of the European Union: Bulgarian (`bg`), Croatian
+  (`hr`), Czech (`cs`), Danish (`da`), Dutch (`nl`), English (`en`), Estonian
+  (`et`), Finnish (`fi`), French (`fr`), German (`de`), Greek (`el`), Hungarian
+  (`hu`), Irish (`ga`), Italian (`it`), Latvian (`lv`), Lithuanian (`lt`),
+  Maltese (`mt`), Polish (`pl`), Portuguese (`pt`), Romanian (`ro`), Slovak
+  (`sk`), Slovenian (`sl`), Spanish (`es`), Swedish (`sv`);
+- other widely spoken languages: Arabic (`ar`), Chinese, simplified (`zh`),
+  Hindi (`hi`), Indonesian (`id`), Japanese (`ja`), Korean (`ko`), Norwegian
+  Bokmål (`nb`), Russian (`ru`), Turkish (`tr`), Ukrainian (`uk`).
 
-Le nom de l'extension, sa description, le bouton et le menu sont traduits aussi.
-L'anglais sert de repli pour tout texte non traduit ; le portugais est celui du
-Portugal, le chinois en caractères simplifiés (aussi pour `zh-TW`). Les
-traductions, hors français et anglais, n'ont pas été relues par des locuteurs
-natifs : corrections bienvenues.
+The extension's name, its description, the button and the menu are translated
+too. English is the fallback for any untranslated text; Portuguese is European
+Portuguese, Chinese uses simplified characters (also for `zh-TW`). The
+translations other than French and English have not been reviewed by native
+speakers: corrections are welcome.
 
-Les textes sont dans `src/i18n/messages_<langue>.properties` (UTF-8, `clé=texte`,
-`\n` pour un retour à la ligne, `%1` pour une valeur insérée). **Ajouter ou
-corriger une langue** : copier `messages_en.properties` en
-`messages_<code>.properties`, traduire, puis reconstruire l'extension ; `build.py`
-inclut tout le dossier `i18n/`. Pour le nom affiché, la description et le menu :
-`src/description.xml`, `src/description/desc_<code>.txt`, `src/Addons.xcu`.
-Le catalogue france-odg peut aussi fournir des champs traduits (`title_en`,
-`description_en`…), utilisés quand ils existent. Le journal reste en français.
+The texts are in `src/i18n/messages_<language>.properties` (UTF-8,
+`key=text`, `\n` for a line break, `%1` for an inserted value). **Adding or
+fixing a language**: copy `messages_en.properties` to
+`messages_<code>.properties`, translate, then rebuild the extension; `build.py`
+includes the whole `i18n/` folder. For the displayed name, the description and
+the menu: `src/description.xml`, `src/description/desc_<code>.txt`,
+`src/Addons.xcu`. The map catalog can also provide translated fields
+(`title_en`, `description_en`…), used when they exist. The log is in English.
 
-## Fonds de carte et cache
+## Base maps and cache
 
-### Catalogue
+### Catalog
 
-La liste des cartes vient d'un **catalogue agrégé**, lu à chaque exécution : par
-défaut [`catalogue/catalogue.json`](catalogue/catalogue.json) de ce projet. Il liste
-des **sources**, chacune un catalogue de cartes au format de
-[france-odg](https://github.com/gaborjager/france-odg) (`maps.json`) ; pour
-l'instant une seule, france-odg.
+The list of maps comes from an **aggregated catalog**, read on every run: by
+default [`catalogue/catalogue.json`](catalogue/catalogue.json) of this project
+(path kept as is, since installed versions point to it). It lists **sources**,
+each one a catalog of maps in the [france-odg](https://github.com/gaborjager/france-odg)
+format (`maps.json`); for now only one, france-odg.
 
 ```json
 {
   "version": 1,
-  "title": "Catalogue CalcMap",
+  "title": "CalcMap catalog",
   "sources": [
-    { "id": "france-odg", "title": "Cartes de France (france-odg)",
+    { "id": "france-odg", "title": "Maps of France (france-odg)",
       "url": "https://raw.githubusercontent.com/gaborjager/france-odg/main/output/maps.json" }
   ]
 }
 ```
 
-- Une source par catalogue de cartes ; `id` (lettres, chiffres, `-`, `_`) nomme sa
-  copie en cache. Une carte dont l'identifiant est déjà fourni par une source
-  précédente est ignorée.
-- Le paramètre `Catalogue` peut aussi désigner directement un catalogue de cartes
+- One source per catalog of maps; `id` (letters, digits, `-`, `_`) names its
+  cached copy. A map whose id is already provided by a previous source is
+  skipped.
+- The `Catalog` setting can also point directly to a catalog of maps
   (`maps.json`).
-- URL acceptées (catalogue, sources, cartes, aperçus) : `https://`, ou `file:///`
-  pour un partage réseau.
-- Champs utilisés d'une carte : `id`, `title`, `description`, `url`,
-  `filename`, `size`, `sha256`, et s'ils existent `objects` (nombre de zones,
-  pour le filtre), `preview` / `preview_sha256` (aperçu SVG, PNG ou JPEG) et
-  `code_examples` (exemples de codes des zones, montrés dans le cadre Code).
+- Accepted URLs (catalog, sources, maps, previews): `https://`, or `file:///`
+  for a network share.
+- Fields used for a map: `id`, `title`, `description`, `url`, `filename`,
+  `size`, `sha256`, and if they exist `objects` (number of zones, for the
+  filter), `preview` / `preview_sha256` (SVG, PNG or JPEG preview) and
+  `code_examples` (examples of zone codes, shown in the Code frame).
 
-### Paramètres
+### Settings
 
-Deux paramètres, dans la configuration de LibreOffice
-(`/fr.github.gaborjager.CalcMap/Parametres`) :
+Two settings, in the LibreOffice configuration
+(`/fr.github.gaborjager.CalcMap/Settings`):
 
-| Paramètre | Par défaut | Rôle |
+| Setting | Default | Role |
 |---|---|---|
-| `Catalogue` | `https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json` | catalogue agrégé (ou catalogue de cartes) |
-| `ZonesMax` | `300` | cartes proposées : au plus ce nombre de zones |
+| `Catalog` | `https://raw.githubusercontent.com/gaborjager/calcmap/main/catalogue/catalogue.json` | aggregated catalog (or catalog of maps) |
+| `MaxZones` | `300` | maps offered: at most this number of zones |
 
-Ils se modifient dans *Outils → Options → LibreOffice → Avancé → Ouvrir la
-configuration avancée* : chercher `ZonesMax` ou `gaborjager` (chercher
-« calcmap » trouve aussi de nombreux chemins de fichiers), puis double-cliquer sur
-la valeur. Ils sont pris en compte à la prochaine exécution de CalcMap.
+They are changed in *Tools → Options → LibreOffice → Advanced → Open Expert
+Configuration*: search for `MaxZones` or `gaborjager` (searching for "calcmap"
+also finds many file paths), then double-click the value. They are taken into
+account on the next run of CalcMap.
 
-Une entreprise peut fournir son propre catalogue agrégé (ses sources : france-odg,
-ses cartes internes…). Pour changer de sources ensuite, il suffit de republier ce
-`catalogue.json` à la même adresse.
+A company can provide its own aggregated catalog (its sources: france-odg, its
+internal maps…). To change the sources later, publishing this catalog again at
+the same address is enough.
 
-### Déploiement par stratégie de groupe (Windows)
+### Deployment through Group Policy (Windows)
 
-LibreOffice lit aussi sa configuration dans le registre Windows, sous
-`SOFTWARE\Policies\LibreOffice` : une stratégie de groupe peut donc imposer les
-paramètres de CalcMap comme ceux de LibreOffice (*Préférences → Paramètres
-Windows → Registre*, ou un modèle ADMX). Une clé par paramètre, sous
-`HKEY_LOCAL_MACHINE` (tous les utilisateurs du poste) :
+LibreOffice also reads its configuration from the Windows registry, under
+`SOFTWARE\Policies\LibreOffice`: a Group Policy can therefore enforce the
+CalcMap settings like the LibreOffice ones (*Preferences → Windows Settings →
+Registry*, or an ADMX template). One key per setting, under
+`HKEY_LOCAL_MACHINE` (all users of the computer):
 
-| Clé | Valeur `Value` (REG_SZ) | Valeur `Final` (REG_DWORD) |
+| Key | `Value` value (REG_SZ) | `Final` value (REG_DWORD) |
 |---|---|---|
-| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\Catalogue` | `https://intranet.exemple.fr/cartes/catalogue.json` | `1` : l'utilisateur ne peut plus la modifier |
-| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Parametres\ZonesMax` | `300` | `1` |
+| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Settings\Catalog` | `https://intranet.example.com/maps/catalog.json` | `1`: the user can no longer change it |
+| `SOFTWARE\Policies\LibreOffice\fr.github.gaborjager.CalcMap\Settings\MaxZones` | `300` | `1` |
 
-Sans `Final`, la valeur n'est qu'une valeur par défaut, que l'utilisateur peut
-changer. CalcMap doit être installé (de préférence pour tous les utilisateurs :
-`unopkg add --shared CalcMap.oxt`) ; les valeurs sont lues au démarrage de
-LibreOffice. Pour vérifier sur un poste : dans la configuration avancée, la
-valeur imposée apparaît, et n'est plus modifiable si elle est verrouillée.
+Without `Final`, the value is only a default value, which the user can change.
+CalcMap must be installed (preferably for all users:
+`unopkg add --shared CalcMap.oxt`); the values are read when LibreOffice
+starts. To check on a computer: in the expert configuration, the enforced
+value appears, and can no longer be changed if it is locked.
 
-> Mécanisme standard de LibreOffice, **non testé avec CalcMap** (pas de poste
-> Windows ici) : à valider sur un poste de test avant le déploiement.
+> Standard LibreOffice mechanism, **not tested with CalcMap** (no Windows
+> computer here): to be validated on a test computer before deployment.
 
-### Aperçu
+### Preview
 
-La carte choisie dans la liste est montrée à droite (aperçu `preview` du
-catalogue, téléchargé dans le cache et vérifié par son empreinte). Sans aperçu,
-ou s'il est illisible, une image neutre est affichée.
+The map chosen in the list is shown on the right (`preview` of the catalog,
+downloaded into the cache and checked by its hash). Without a preview, or if
+it is unreadable, a neutral image is shown.
 
 ### Cache
 
-Le catalogue, ses sources, les cartes et les aperçus sont gardés dans le profil
-LibreOffice :
+The catalog, its sources, the maps and the previews are kept in the
+LibreOffice profile:
 
-- Windows : `%APPDATA%\LibreOffice\4\user\calcmap\`
-- Linux : `~/.config/libreoffice/4/user/calcmap/`
+- Windows: `%APPDATA%\LibreOffice\4\user\calcmap\`
+- Linux: `~/.config/libreoffice/4/user/calcmap/`
 
-Avant chaque utilisation, l'empreinte SHA-256 du fichier en cache est comparée à
-celle du catalogue : la carte n'est retéléchargée que si elle a changé. Un
-téléchargement dont l'empreinte ne correspond pas est rejeté. La carte s'ouvre
-comme un nouveau document (modèle) : l'enregistrer ne modifie jamais le cache.
+Before each use, the SHA-256 hash of the cached file is compared with the
+catalog's: the map is downloaded again only if it has changed. A download
+whose hash does not match is rejected. The map opens as a new document
+(template): saving it never changes the cache.
 
-**Sans réseau**, les copies en cache du catalogue et des sources sont utilisées,
-et la liste ne propose que les cartes déjà téléchargées (ainsi que tout autre
-`.odg` déposé dans ce dossier). Au tout premier lancement sans réseau, le
-catalogue fourni avec l'extension sert de secours. Le réseau passe par
-LibreOffice : un proxy se règle dans **Outils → Options → Internet → Proxy**.
+**Without a network**, the cached copies of the catalog and of the sources are
+used, and the list only offers the maps already downloaded (and any other
+`.odg` placed in this folder). On the very first launch without a network, the
+catalog shipped with the extension is the fallback. Network access goes
+through LibreOffice: a proxy is set in **Tools → Options → Internet → Proxy**.
 
-## Comportement face aux données imparfaites
+## Handling imperfect data
 
-La macro n'affiche jamais d'erreur Basic. Une donnée inexploitable laisse la zone
-en couleur par défaut (gris) et est notée dans le journal.
+The macro never shows a Basic error. Unusable data leaves the zone in the
+default color (grey) and is noted in the log.
 
-| Cas | Traitement |
+| Case | Handling |
 |---|---|
-| Ligne vide, code vide | ignorée |
-| En-tête (même répété au milieu) | ignoré (valeur non numérique) |
-| Valeur vide, texte (`n.d.`), cellule en erreur (`#DIV/0!`) | couleur par défaut |
-| Nombre saisi en texte (`1 234,5`) | accepté |
-| Code sans zéro initial (`1` pour `01`) | retrouvé |
-| Code en minuscules ou avec espaces (` 2a `) | accepté |
-| Code en double | dernière valeur retenue |
-| Code absent de la carte | ignoré |
+| Empty row, empty code | skipped |
+| Header (even repeated in the middle) | skipped (non-numeric value) |
+| Empty value, text (`n.d.`), cell in error (`#DIV/0!`) | default color |
+| Number typed as text (`1 234,5`) | accepted |
+| Code without its leading zero (`1` for `01`) | recovered |
+| Code in lowercase or with spaces (` 2a `) | accepted |
+| Duplicate code | last value kept |
+| Code not in the map | skipped |
 
-## Texte alternatif
+## Alternative text
 
-La valeur de chaque zone est ajoutée à son **texte alternatif** (clic droit sur
-une zone → *Texte alternatif*, champ *Texte alternatif*), à la suite du texte
-fourni par la carte :
+The value of each zone is added to its **alternative text** (right-click a
+zone → *Alt Text*, *Text Alternative* field), after the text provided by the
+map:
 
-- `22 - Côtes-d'Armor` devient `22 - Côtes-d'Armor - Valeur : 666`
-- sans donnée : `22 - Côtes-d'Armor - Valeur : (aucune)`
+- `22 - Côtes-d'Armor` becomes `22 - Côtes-d'Armor - Value: 666`
+- without data: `22 - Côtes-d'Armor - Value: (none)`
 
-Recolorier une carte déjà coloriée remplace la valeur au lieu de l'ajouter une
-seconde fois. Désactivable avec `ECRIRE_TEXTE_ALT = False` dans le code.
+The words follow the interface language. Recoloring an already colored map
+replaces the value instead of adding it a second time. Can be disabled with
+`WRITE_ALT_TEXT = False` in the code.
 
-## Journal (débogage)
+## Log (debugging)
 
-Chaque exécution écrase le fichier `calcmap.log` du profil LibreOffice :
+Each run overwrites the `calcmap.log` file of the LibreOffice profile:
 
-- Windows : `%APPDATA%\LibreOffice\4\user\calcmap.log`
-- Linux : `~/.config/libreoffice/4/user/calcmap.log`
+- Windows: `%APPDATA%\LibreOffice\4\user\calcmap.log`
+- Linux: `~/.config/libreoffice/4/user/calcmap.log`
 
-Il liste la langue, les palettes, la plage lue, le catalogue et le cache (empreintes, téléchargements), chaque ligne écartée avec sa raison, les codes inconnus de
-la carte et le bilan. Avec `JOURNAL_DETAILLE = True`, il trace aussi chaque zone.
+It lists the language, the palettes, the range read, the catalog and the cache
+(hashes, downloads), each discarded row with its reason, the codes unknown to
+the map and the summary. With `DETAILED_LOG = True`, it also traces each zone.
 
 ## Installation
 
-Télécharger [`dist/CalcMap.oxt`](https://github.com/gaborjager/calcmap/raw/main/dist/CalcMap.oxt)
-(dernière version construite), puis :
+Download [`dist/CalcMap.oxt`](https://github.com/gaborjager/calcmap/raw/main/dist/CalcMap.oxt)
+(latest build), then:
 
-- **Un utilisateur** : double-clic sur `CalcMap.oxt`, ou
-  **Outils → Gestionnaire des extensions → Ajouter**, puis redémarrer LibreOffice.
-- **Tous les utilisateurs d'un poste** (administrateur, LibreOffice fermé) :
+- **One user**: double-click `CalcMap.oxt`, or **Tools → Extension Manager →
+  Add**, then restart LibreOffice.
+- **All users of a computer** (administrator, LibreOffice closed):
   ```
   "C:\Program Files\LibreOffice\program\unopkg.exe" add --shared CalcMap.oxt
   ```
 
-Le bouton s'ajoute à la barre d'outils *Standard* de Calc, après *Insérer un graphique*.
-Avec l'interface en onglets, utiliser **Outils → CalcMap : colorier une carte…**.
+The button is added to the Calc *Standard* toolbar, after *Insert Chart*. With
+the tabbed interface, use **Tools → CalcMap: color a map…**.
 
-### Mise à jour depuis ColorierCarte
+### Upgrading from version 0.19 or earlier
 
-CalcMap est le nouveau nom de l'extension *ColorierCarte*. C'est
-une nouvelle extension pour LibreOffice : **désinstaller ColorierCarte** dans le
-Gestionnaire des extensions avant d'installer CalcMap, sinon les deux boutons
-coexistent. Rien n'est perdu :
+Since version 0.20, the code, the settings and the names stored in documents
+are in English. Existing spreadsheets keep working: the zone texts and legends
+created by earlier versions ("CalcMap texte", "CalcMap légende") are
+recognized and replaced on the next recoloring. Two things are not carried
+over:
 
-- au premier lancement, le cache `coloriercarte/` (cartes téléchargées, palettes
-  personnelles `palettes.json`, derniers choix) est recopié dans `calcmap/` ;
-- les classeurs dont la carte est liée par ColorierCarte (plages `ColorierCarte_N`)
-  continuent de se mettre à jour ; les nouvelles cartes utilisent `CalcMap_N`.
+- the **settings** were renamed (`Parametres/Catalogue` and `ZonesMax` are now
+  `Settings/Catalog` and `MaxZones`): set them again if you had changed them
+  (or update your Group Policy keys);
+- the **last choices** (map, palette, display options offered by default) start
+  again from the defaults.
 
-## Construire l'extension
+### Upgrading from ColorierCarte
+
+CalcMap is the new name of the *ColorierCarte* extension. It is a new extension
+for LibreOffice: **uninstall ColorierCarte** in the Extension Manager before
+installing CalcMap, otherwise both buttons coexist. Nothing is lost:
+
+- on first launch, the `coloriercarte/` cache (downloaded maps, personal
+  `palettes.json` palettes) is copied into `calcmap/`;
+- spreadsheets whose map was linked by ColorierCarte (`ColorierCarte_N` ranges)
+  keep updating; new maps use `CalcMap_N`.
+
+## Building the extension
 
 ```bash
 python3 build.py
 ```
 
-Produit `dist/CalcMap.oxt`. La version est lue dans la constante `VERSION`
-du code Basic et reportée dans `description.xml`.
+Produces `dist/CalcMap.oxt`. The version is read from the `VERSION` constant of
+the Basic code and copied into `description.xml`.
 
-## Fichiers de test
+## Test files
 
-Un classeur par fond de carte du catalogue (ceux des cantons et des communes
-servent si le paramètre `ZonesMax` est relevé) : `tests/test-<carte>.ods`, avec les
-colonnes *Code | Valeur (test) | Nom* et une ligne par zone. Sélectionner les
-colonnes A:B puis lancer la commande avec la carte correspondante : toutes les
-zones doivent être coloriées, sans code inconnu dans le journal.
+One spreadsheet per base map of the catalog (the cantons and municipalities
+ones are used if the `MaxZones` setting is raised): `tests/test-<map>.ods`,
+with the columns *Code | Value (test) | Name* and one row per zone. Select
+columns A:B then run the command with the matching map: all the zones must be
+colored, without unknown codes in the log.
 
-Pour les régénérer depuis les cartes du catalogue (valeurs aléatoires mais
-reproductibles) :
-
-```bash
-python3 tests/generer_tests.py                        # fichiers manquants
-python3 tests/generer_tests.py departements --force   # réécrire une carte
-```
-
-### Tests automatiques (sans écran)
-
-`tests/headless/lancer.sh <macro>` lance une macro de test de
-`tests/headless/tests_calcmap.bas` dans LibreOffice sans écran, sur une copie de
-l'extension et un profil jetable, et affiche les lignes `TEST` du journal :
+To regenerate them from the catalog's maps (random but reproducible values):
 
 ```bash
-tests/headless/lancer.sh TestTextes            # textes des zones, légende
-tests/headless/lancer.sh TestEditeurComplet    # éditeur de classes (souris, flèches, saisie)
-tests/headless/lancer.sh TestCatalogue         # catalogue agrégé, filtre, aperçus (fichiers locaux)
-tests/headless/lancer.sh TestIconeSurCarte     # icône sur une carte sélectionnée : configuration
-tests/headless/lancer.sh TestParametres        # paramètres : valeurs par défaut, modification
-tests/headless/lancer.sh TestTraductions       # chaque langue chargée ; dialogue en de, ar, ja
+python3 tests/generate_tests.py                        # missing files
+python3 tests/generate_tests.py departements --force   # rewrite one map
 ```
 
-Les dialogues ne s'affichent pas sans écran : leurs contrôles sont construits,
-et les clics ou saisies simulés en appelant leurs écouteurs.
+### Automatic tests (without a display)
 
-## Organisation
+`tests/headless/run.sh <macro>` runs a test macro of
+`tests/headless/tests_calcmap.bas` in LibreOffice without a display, on a copy
+of the extension and a throwaway profile, and prints the `TEST` lines of the
+log:
+
+```bash
+tests/headless/run.sh TestTexts            # zone texts, legend
+tests/headless/run.sh TestFullEditor       # classes editor (mouse, arrows, typing)
+tests/headless/run.sh TestPartial          # zone-by-zone update vs full recalculation
+tests/headless/run.sh TestDialog           # main dialog: settings read back unchanged
+tests/headless/run.sh TestCodesIcon        # code check icon, dialog geometry
+tests/headless/run.sh TestCatalog          # aggregated catalog, filter, previews (local files)
+tests/headless/run.sh TestIconOnMap        # icon on a selected map: configuration
+tests/headless/run.sh TestSettings         # settings: default values, change
+tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja
+tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
+```
+
+Dialogs are not shown without a display: their controls are built, and clicks
+or typing are simulated by calling their listeners.
+
+## Layout
 
 ```
 calcmap/
-├── build.py                    construit dist/CalcMap.oxt
-├── dist/CalcMap.oxt            extension prête à installer
-├── catalogue/catalogue.json    catalogue agrégé (sources de cartes), aussi inclus dans l'extension
+├── build.py                    builds dist/CalcMap.oxt
+├── dist/CalcMap.oxt            extension ready to install
+├── catalogue/catalogue.json    aggregated catalog (map sources), also included in the extension
 ├── src/
-│   ├── basic/CalcMap.bas       code source de la macro (à modifier ici)
-│   ├── CalcMap/                bibliothèque Basic (le .xba est généré par build.py)
-│   ├── palettes.json           palettes de couleurs fournies
-│   ├── i18n/                   textes traduits (34 langues : messages_fr, messages_en…)
-│   ├── description/            description de l'extension par langue
-│   ├── Addons.xcu              bouton, entrée de menu, icône
-│   ├── Events.xcu              reconnexion des cartes liées à l'ouverture
-│   ├── CalcMap.xcs             paramètres (Catalogue, ZonesMax)
-│   ├── description.xml         identifiant et version de l'extension
+│   ├── basic/CalcMap.bas       source code of the macro (edit here)
+│   ├── CalcMap/                Basic library (the .xba is generated by build.py)
+│   ├── palettes.json           color palettes provided
+│   ├── i18n/                   translated texts (34 languages: messages_en, messages_fr…)
+│   ├── description/            description of the extension per language
+│   ├── Addons.xcu              button, menu entry, icon
+│   ├── Events.xcu              reconnection of the linked maps on opening
+│   ├── CalcMap.xcs             settings (Catalog, MaxZones)
+│   ├── description.xml         id and version of the extension
 │   ├── META-INF/manifest.xml
-│   └── icons/                  icône globe 16 et 26 px, image « pas d'aperçu »
+│   └── icons/                  globe icon 16 and 26 px, "no preview" image, code check icons
 └── tests/
-    ├── generer_tests.py        (re)génère les classeurs test-<carte>.ods
-    ├── test-regions.ods        13 régions        ┐
-    ├── test-departements.ods   96 départements   │ Code | Valeur (test) | Nom,
-    ├── test-cantons.ods        2 294 cantons     │ une ligne par zone de la carte
-    ├── test-communes.ods       35 191 communes   ┘
-    ├── test-cas-limites.ods    en-têtes, vides, textes, erreurs, doublons…
-    ├── apercu-test-departements.png
-    └── headless/               tests sans écran (lancer.sh, macros, fixtures)
+    ├── generate_tests.py       (re)generates the test-<map>.ods spreadsheets
+    ├── test-regions.ods        13 regions        ┐
+    ├── test-departements.ods   96 departments    │ Code | Value (test) | Name,
+    ├── test-cantons.ods        2,294 cantons     │ one row per zone of the map
+    ├── test-communes.ods       35,191 communes   ┘
+    ├── test-edge-cases.ods     headers, blanks, texts, errors, duplicates…
+    ├── preview-test-departements.png
+    └── headless/               tests without a display (run.sh, driver.py, macros, fixtures)
 ```

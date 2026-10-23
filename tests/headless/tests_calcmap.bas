@@ -1,7 +1,7 @@
 
 ' ===========================================================================
-' Macros de test de CalcMap, ajoutées à une copie du code par lancer.sh
-' (jamais incluses dans CalcMap.oxt). Résultats : lignes « TEST » du journal.
+' CalcMap test macros, added to a copy of the code by run.sh
+' (never included in CalcMap.oxt). Results: "TEST" lines of the log.
 ' ===========================================================================
 
 Function DocCalcT() As Object
@@ -13,603 +13,660 @@ Function DocCalcT() As Object
 	Loop
 End Function
 
-' Insère la carte des départements dans la 1re feuille, comme CalcMap() ;
-' renvoie le nom du lien
-Function InsererCarteT(aOpt As Variant, sPalette As String) As String
-	Dim oCalc As Object, oDoc As Object, oSel As Object, oPlage As Object, aPals As Variant, aPal As Variant
-	Dim oForme As Object, bImage As Boolean, sUrl As String, vT As Variant
+' Inserts the departments map into the 1st sheet, like CalcMap();
+' returns the link name
+Function InsertMapT(aOpt As Variant, sPalette As String) As String
+	Dim oCalc As Object, oDoc As Object, oSel As Object, oRange As Object, aPals As Variant, aPal As Variant
+	Dim oShp As Object, bImage As Boolean, sUrl As String, vT As Variant
 	Dim aProps(0) As New com.sun.star.beans.PropertyValue
 	oCalc = DocCalcT()
-	aPals = ChargerPalettes()
-	aPal = aPals(IndicePalette(aPals, sPalette))
-	oSel = PlageSelectionnee(oCalc.getSheets().getByIndex(0).getCellRangeByName("A1:C1048576"))
-	oPlage = PlageDeDonnees(oSel)
+	aPals = LoadPalettes()
+	aPal = aPals(PaletteIndex(aPals, sPalette))
+	oSel = SelectedRange(oCalc.getSheets().getByIndex(0).getCellRangeByName("A1:C1048576"))
+	oRange = DataRange(oSel)
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
 	sUrl = ConvertToURL("/home/gabor/github/france-odg/output/departements-france.odg")
 	oDoc = StarDesktop.loadComponentFromURL(sUrl, "_blank", 0, aProps())
-	vT = ContexteTexte(oCalc, oPlage, oPlage.getDataArray(), aOpt, Nothing)
-	ColorierDocument(oDoc, oPlage.getDataArray(), aPal, vT)
-	oForme = InsererDansCalc(oDoc, oCalc, oPlage, NomFichier(sUrl), bImage)
+	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, Nothing)
+	ColorDocument(oDoc, oRange.getDataArray(), aPal, vT)
+	oShp = InsertIntoCalc(oDoc, oCalc, oRange, FileNameOf(sUrl), bImage)
 	oDoc.close(True)
-	InsererCarteT = CreerLien(oCalc, oSel, oForme, aPal(P_ID), sUrl, bImage, aOpt)
-	If aOpt(O_LEGENDE) Or aOpt(O_VALEURS) Or aOpt(O_LIBELLES) Then RecalculerLien(oCalc, InsererCarteT)
+	InsertMapT = CreateLink(oCalc, oSel, oShp, aPal(P_ID), sUrl, bImage, aOpt)
+	If aOpt(O_LEGEND) Or aOpt(O_VALUES) Or aOpt(O_LABELS) Then RecalcLink(oCalc, InsertMapT)
 End Function
 
-' ---------------------------------------------------------------- textes
-Function TextesT(oG As Object, sCode As String) As String
-	Dim i As Long, nZ As Long, nT As Long, nL As Long, iPremierTexte As Long, iDerniereZone As Long
+' ---------------------------------------------------------------- texts
+Function TextsT(oG As Object, sCode As String) As String
+	Dim i As Long, nZ As Long, nT As Long, nL As Long, iFirstText As Long, iLastZone As Long
 	Dim s As String, o As Object
-	iPremierTexte = -1
+	iFirstText = -1
 	For i = 0 To oG.getCount() - 1
 		o = oG.getByIndex(i)
-		If Left(o.Name, Len(PREFIXE_TEXTE)) = PREFIXE_TEXTE Then
+		If Left(o.Name, Len(TEXT_PREFIX)) = TEXT_PREFIX Then
 			nT = nT + 1
-			If iPremierTexte < 0 Then iPremierTexte = i
-			If o.Name = PREFIXE_TEXTE & " " & sCode Then s = s & "texte '" & Replace(o.getString(), Chr(10), "/") _
-				& "' couleur " & Hex(o.CharColor) & " centre " & (o.Position.X + o.Size.Width / 2) & "," _
+			If iFirstText < 0 Then iFirstText = i
+			If o.Name = TEXT_PREFIX & " " & sCode Then s = s & "text '" & Replace(o.getString(), Chr(10), "/") _
+				& "' color " & Hex(o.CharColor) & " center " & (o.Position.X + o.Size.Width / 2) & "," _
 				& (o.Position.Y + o.Size.Height / 2)
-		ElseIf EstLegende(o.Name) Then
+		ElseIf IsLegend(o.Name) Then
 			nL = nL + 1
 		Else
 			nZ = nZ + 1
-			iDerniereZone = i
-			If o.Name = sCode Then s = s & " ; zone centre " & (o.Position.X + o.Size.Width / 2) & "," _
-				& (o.Position.Y + o.Size.Height / 2) & " texte dans la zone='" & o.getString() & "'"
+			iLastZone = i
+			If o.Name = sCode Then s = s & " ; zone center " & (o.Position.X + o.Size.Width / 2) & "," _
+				& (o.Position.Y + o.Size.Height / 2) & " text in the zone='" & o.getString() & "'"
 		End If
 	Next i
-	TextesT = nZ & " zones, " & nT & " textes, " & nL & " formes de légende ; textes après les zones : " _
-		& (nT = 0 Or iPremierTexte > iDerniereZone) & " | " & sCode & " : " & s
+	TextsT = nZ & " zones, " & nT & " texts, " & nL & " legend shapes ; texts after the zones: " _
+		& (nT = 0 Or iFirstText > iLastZone) & " | " & sCode & ": " & s
 End Function
 
-Sub TestTextes()
-	Dim oCalc As Object, oFeuille As Object, oG As Object, aOpt As Variant, sLien As String, i As Long, t As Long
-	Dim aChamps As Variant, oDoc As Object, oPlage As Object, vT As Variant, aPals As Variant
+Sub TestTexts()
+	Dim oCalc As Object, oSheet As Object, oG As Object, aOpt As Variant, sLink As String, i As Long, t As Long
+	Dim aFields As Variant, oDoc As Object, oRange As Object, vT As Variant, aPals As Variant
 	Dim aProps(0) As New com.sun.star.beans.PropertyValue
-	OuvrirJournal()
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
+	LoadTexts()
 	oCalc = DocCalcT()
-	oFeuille = oCalc.getSheets().getByIndex(0)
-	aOpt = OptionsParDefaut()
-	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True : aOpt(O_LEGENDE) = True
-	aOpt(O_TAILLE_VALEURS) = 14 : aOpt(O_TAILLE_LIBELLES) = 7
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_LEGEND) = True
+	aOpt(O_SIZE_VALUES) = 14 : aOpt(O_SIZE_LABELS) = 7
 	t = GetSystemTicks()
-	sLien = InsererCarteT(aOpt, "jaune-rouge")
-	oG = oFeuille.getDrawPage().getByIndex(0)
-	Journal("TEST insertion (" & (GetSystemTicks() - t) & " ms) : " & TextesT(oG, "88"))
-	' Modification d'une valeur : textes à jour, pas de doublons
+	sLink = InsertMapT(aOpt, "jaune-rouge")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	WriteLog("TEST insertion (" & (GetSystemTicks() - t) & " ms): " & TextsT(oG, "88"))
+	' Change of a value: texts up to date, no duplicates
 	t = GetSystemTicks()
 	For i = 1 To 200
-		If oFeuille.getCellByPosition(0, i).getString() = "88" Then oFeuille.getCellByPosition(1, i).setValue(4321)
+		If oSheet.getCellByPosition(0, i).getString() = "88" Then oSheet.getCellByPosition(1, i).setValue(4321)
 	Next i
-	Journal("TEST modification (" & (GetSystemTicks() - t) & " ms) : " & TextesT(oG, "88"))
-	' Carte d'une version précédente : texte dans la zone, retiré
+	WriteLog("TEST change (" & (GetSystemTicks() - t) & " ms): " & TextsT(oG, "88"))
+	' Map from a previous version: text in the zone, removed
 	For i = 0 To oG.getCount() - 1
-		If oG.getByIndex(i).Name = "88" Then oG.getByIndex(i).setString("ancien")
+		If oG.getByIndex(i).Name = "88" Then oG.getByIndex(i).setString("old")
 	Next i
-	RecalculerLien(oCalc, sLien, True)
-	Journal("TEST ancien texte dans la zone : " & TextesT(oG, "88"))
-	' Valeurs et libellés désactivés : textes retirés
-	aChamps = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLien), "|")
-	aOpt(O_VALEURS) = False : aOpt(O_LIBELLES) = False
-	oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLien, _
-		ChampsLien(aChamps(1), aChamps(2), aChamps(3), False, aOpt))
-	RecalculerLien(oCalc, sLien)
-	Journal("TEST options désactivées : " & TextesT(oG, "88"))
-	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True
-	oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLien, _
-		ChampsLien(aChamps(1), aChamps(2), aChamps(3), False, aOpt))
-	RecalculerLien(oCalc, sLien)
-	' Ouverture dans Draw
-	aPals = ChargerPalettes()
-	oPlage = PlageDeDonnees(PlageSelectionnee(oFeuille.getCellRangeByName("A1:C1048576")))
+	RecalcLink(oCalc, sLink, True)
+	WriteLog("TEST old text in the zone: " & TextsT(oG, "88"))
+	' Values and labels disabled: texts removed
+	aFields = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLink), "|")
+	aOpt(O_VALUES) = False : aOpt(O_LABELS) = False
+	oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLink, _
+		LinkFields(aFields(1), aFields(2), aFields(3), False, aOpt))
+	RecalcLink(oCalc, sLink)
+	WriteLog("TEST options disabled: " & TextsT(oG, "88"))
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True
+	oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLink, _
+		LinkFields(aFields(1), aFields(2), aFields(3), False, aOpt))
+	RecalcLink(oCalc, sLink)
+	' Opening in Draw
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(oSheet.getCellRangeByName("A1:C1048576")))
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
 	oDoc = StarDesktop.loadComponentFromURL(ConvertToURL("/home/gabor/github/france-odg/output/departements-france.odg"), _
 		"_blank", 0, aProps())
-	vT = ContexteTexte(oCalc, oPlage, oPlage.getDataArray(), aOpt, oDoc)
-	ColorierDocument(oDoc, oPlage.getDataArray(), aPals(IndicePalette(aPals, "jaune-rouge")), vT)
-	Journal("TEST Draw : " & TextesT(oDoc.getDrawPages().getByIndex(0), "88"))
+	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, oDoc)
+	ColorDocument(oDoc, oRange.getDataArray(), aPals(PaletteIndex(aPals, "jaune-rouge")), vT)
+	WriteLog("TEST Draw: " & TextsT(oDoc.getDrawPages().getByIndex(0), "88"))
 	oDoc.close(True)
-	FermerJournal()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- éditeur de classes
-Function EtatT() As String
+' ---------------------------------------------------------------- classes editor
+Function StateT() As String
 	Dim k As Integer, s As String, aN As Variant
-	aN = CompterClasses()
-	For k = 0 To nClassesEd - 1
-		s = s & "[" & NombreEd(aBornesEd(k)) & ".." & NombreEd(aBornesEd(k + 1)) & " " & Hex(aCouleursEd(k)) _
+	aN = CountClasses()
+	For k = 0 To nEdClasses - 1
+		s = s & "[" & EdNumber(aEdBounds(k)) & ".." & EdNumber(aEdBounds(k + 1)) & " " & Hex(aEdColors(k)) _
 			& " n=" & aN(k) & "]"
 	Next k
-	EtatT = nClassesEd & " classes (champ " & oEditeur.getControl("numClasses").getText() & ") " & s _
-		& " | borne choisie=" & iBorneEd & " champ='" & oEditeur.getControl("txtBorne").getText() & "'" _
-		& " | erreur='" & oEditeur.getControl("lblErreur").getModel().Label & "'"
+	StateT = nEdClasses & " classes (field " & oEditor.getControl("numClasses").getText() & ") " & s _
+		& " | chosen bound=" & iEdBound & " field='" & oEditor.getControl("txtBound").getText() & "'" _
+		& " | error='" & oEditor.getControl("lblError").getModel().Label & "'"
 End Function
 
-Sub SourisT(sQuoi As String, sNom As String, nX As Long)
+Sub MouseT(sWhat As String, sName As String, nX As Long)
 	Dim oEv As Object
 	oEv = CreateUnoStruct("com.sun.star.awt.MouseEvent")
-	oEv.Source = oEditeur.getControl(sNom)
+	oEv.Source = oEditor.getControl(sName)
 	oEv.X = nX
 	oEv.Buttons = com.sun.star.awt.MouseButton.LEFT
-	Select Case sQuoi
-		Case "appui" : Barre_mousePressed(oEv)
-		Case "glisse" : BarreMvt_mouseDragged(oEv)
-		Case "relache" : Barre_mouseReleased(oEv)
+	Select Case sWhat
+		Case "press" : Bar_mousePressed(oEv)
+		Case "drag" : BarMove_mouseDragged(oEv)
+		Case "release" : Bar_mouseReleased(oEv)
 	End Select
 End Sub
 
-Sub OuvrirEditeurT(sPalette As String)
-	Dim aPals As Variant, oPlage As Object, s As String
-	ChargerTextes()
-	aPals = ChargerPalettes()
-	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
-	s = ConstruireEditeur("", aPals(IndicePalette(aPals, sPalette)), oPlage.getDataArray(), 0, 1, 2, Nothing)
+Sub OpenEditorT(sPalette As String)
+	Dim aPals As Variant, oRange As Object, s As String
+	LoadTexts()
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	s = BuildEditor("", aPals(PaletteIndex(aPals, sPalette)), oRange.getDataArray(), 0, 1, 2, Nothing)
 End Sub
 
-Sub TestEditeurComplet()
-	Dim oFond As Object, oEv As Object, oNum As Object, k As Integer
-	OuvrirJournal()
+Sub TestFullEditor()
+	Dim oBase As Object, oEv As Object, oNum As Object, k As Integer
+	OpenLog()
 	On Error GoTo ErrT
-	OuvrirEditeurT("bleus")
-	oFond = oEditeur.getControl("fondBarre").getPosSize()
-	oNum = oEditeur.getControl("numClasses")
-	Journal("TEST depart : " & EtatT())
+	OpenEditorT("bleus")
+	oBase = oEditor.getControl("barBase").getPosSize()
+	oNum = oEditor.getControl("numClasses")
+	WriteLog("TEST start: " & StateT())
 	oNum.up() : oNum.up()
-	Journal("TEST 2 clics haut : " & EtatT())
-	SourisT("appui", "pgn3", 1)
-	SourisT("glisse", "fondBarre", oFond.Width / 2)
-	SourisT("relache", "fondBarre", oFond.Width / 2)
-	Journal("TEST borne 3 glissee au milieu : " & EtatT())
-	SourisT("appui", "pgn3", 1)
-	SourisT("glisse", "fondBarre", oFond.Width - 2)
-	SourisT("relache", "fondBarre", oFond.Width - 2)
-	Journal("TEST borne 3 glissee trop loin : " & EtatT())
-	oEditeur.getControl("txtBorne").setText("450")
-	Journal("TEST borne 3 saisie 450 : " & EtatT())
-	oEditeur.getControl("txtBorne").setText("5000")
-	Journal("TEST borne 3 saisie 5000 : " & EtatT())
-	aCouleursEd(2) = RGB(255, 0, 0)
+	WriteLog("TEST 2 clicks up: " & StateT())
+	MouseT("press", "pgn3", 1)
+	MouseT("drag", "barBase", oBase.Width / 2)
+	MouseT("release", "barBase", oBase.Width / 2)
+	WriteLog("TEST bound 3 dragged to the middle: " & StateT())
+	MouseT("press", "pgn3", 1)
+	MouseT("drag", "barBase", oBase.Width - 2)
+	MouseT("release", "barBase", oBase.Width - 2)
+	WriteLog("TEST bound 3 dragged too far: " & StateT())
+	oEditor.getControl("txtBound").setText("450")
+	WriteLog("TEST bound 3 typed 450: " & StateT())
+	oEditor.getControl("txtBound").setText("5000")
+	WriteLog("TEST bound 3 typed 5000: " & StateT())
+	aEdColors(2) = RGB(255, 0, 0)
 	oEv = CreateUnoStruct("com.sun.star.awt.ActionEvent")
-	oEv.Source = oEditeur.getControl("btnLineaire")
-	EditeurBouton_actionPerformed(oEv)
-	Journal("TEST lineaire (7 classes et rouge gardes) : " & EtatT())
+	oEv.Source = oEditor.getControl("btnLinear")
+	EditorButton_actionPerformed(oEv)
+	WriteLog("TEST linear (7 classes and red kept): " & StateT())
 	oNum.setText("1")
-	Journal("TEST saisie '1' (ignoree) : " & EtatT())
+	WriteLog("TEST typed '1' (ignored): " & StateT())
 	oNum.setText("12")
-	Journal("TEST saisie '12' : " & EtatT())
+	WriteLog("TEST typed '12': " & StateT())
 	For k = 1 To 4 : oNum.down() : Next k
-	Journal("TEST 4 clics bas : " & EtatT())
+	WriteLog("TEST 4 clicks down: " & StateT())
 	For k = 1 To 30 : oNum.up() : Next k
-	Journal("TEST 30 clics haut (max 20) : " & EtatT())
-	SourisT("appui", "seg1", 3)
-	SourisT("relache", "seg1", 3)
-	Journal("TEST clic sur une couleur : " & EtatT())
-	oEditeur.dispose()
-	FermerJournal()
+	WriteLog("TEST 30 clicks up (max 20): " & StateT())
+	MouseT("press", "seg1", 3)
+	MouseT("release", "seg1", 3)
+	WriteLog("TEST click on a color: " & StateT())
+	oEditor.dispose()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- lisibilité
-' Carte des départements avec chaque réglage de lisibilité : nombre de formes,
-' temps de recoloriage, image lisibilite-<réglage>.png
-Sub TestLisibiliteCarte()
-	Dim oCalc As Object, oFeuille As Object, aOpt As Variant, sLien As String, sMode As Variant, t As Long
-	Dim oG As Object, i As Long, aChamps As Variant
-	OuvrirJournal()
+' ---------------------------------------------------------------- readability
+' Departments map with each readability setting: number of shapes,
+' recoloring time, image readability-<setting>.png
+Sub TestMapReadability()
+	Dim oCalc As Object, oSheet As Object, aOpt As Variant, sLink As String, sMode As Variant, t As Long
+	Dim oG As Object, i As Long, aFields As Variant
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
+	LoadTexts()
 	oCalc = DocCalcT()
-	oFeuille = oCalc.getSheets().getByIndex(0)
-	aOpt = OptionsParDefaut()
-	Journal("TEST contour par defaut : valeurs " & aOpt(O_CONTOUR_VALEURS) & ", libelles " & aOpt(O_CONTOUR_LIBELLES))
-	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True : aOpt(O_TAILLE_LIBELLES) = 7
-	sLien = InsererCarteT(aOpt, "jaune-rouge-10")
-	oG = oFeuille.getDrawPage().getByIndex(0)
-	aChamps = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLien), "|")
-	For Each sMode In Array("aucune", "contour", "valeurs seules")
-		aOpt(O_CONTOUR_VALEURS) = IIf(sMode = "aucune", "aucune", "contour")
-		aOpt(O_CONTOUR_LIBELLES) = IIf(sMode = "contour", "contour", "aucune")
-		oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLien, _
-			ChampsLien(aChamps(1), aChamps(2), aChamps(3), False, aOpt))
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	WriteLog("TEST default outline: values " & aOpt(O_OUTLINE_VALUES) & ", labels " & aOpt(O_OUTLINE_LABELS))
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_SIZE_LABELS) = 7
+	sLink = InsertMapT(aOpt, "jaune-rouge-10")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	aFields = Split(oCalc.getDocumentProperties().getUserDefinedProperties().getPropertyValue(sLink), "|")
+	For Each sMode In Array("none", "outline", "values only")
+		aOpt(O_OUTLINE_VALUES) = IIf(sMode = "none", "none", "outline")
+		aOpt(O_OUTLINE_LABELS) = IIf(sMode = "outline", "outline", "none")
+		oCalc.getDocumentProperties().getUserDefinedProperties().setPropertyValue(sLink, _
+			LinkFields(aFields(1), aFields(2), aFields(3), False, aOpt))
 		t = GetSystemTicks()
-		RecalculerLien(oCalc, sLien)
-		Journal("TEST " & sMode & " : " & oG.getCount() & " formes dans la carte, recoloriage " & (GetSystemTicks() - t) & " ms ; " & CopieT(oG))
-		ExporterFormeT(oG, "lisibilite-" & sMode & ".png")
+		RecalcLink(oCalc, sLink)
+		WriteLog("TEST " & sMode & ": " & oG.getCount() & " shapes in the map, recoloring " & (GetSystemTicks() - t) & " ms ; " & CopyT(oG))
+		ExportShapeT(oG, "readability-" & sMode & ".png")
 	Next sMode
-	FermerJournal()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-Sub ExporterFormeT(oForme As Object, sNom As String)
-	Dim oFiltre As Object
-	Dim aArgs(2) As New com.sun.star.beans.PropertyValue, aDonnees(0) As New com.sun.star.beans.PropertyValue
-	aDonnees(0).Name = "PixelWidth" : aDonnees(0).Value = 2000
-	aArgs(0).Name = "URL" : aArgs(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/" & sNom)
+Sub ExportShapeT(oShp As Object, sName As String)
+	Dim oFilter As Object
+	Dim aArgs(2) As New com.sun.star.beans.PropertyValue, aDataArray(0) As New com.sun.star.beans.PropertyValue
+	aDataArray(0).Name = "PixelWidth" : aDataArray(0).Value = 2000
+	aArgs(0).Name = "URL" : aArgs(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/" & sName)
 	aArgs(1).Name = "MediaType" : aArgs(1).Value = "image/png"
-	aArgs(2).Name = "FilterData" : aArgs(2).Value = aDonnees()
-	oFiltre = CreateUnoService("com.sun.star.drawing.GraphicExportFilter")
-	oFiltre.setSourceDocument(oForme)
-	oFiltre.filter(aArgs())
+	aArgs(2).Name = "FilterData" : aArgs(2).Value = aDataArray()
+	oFilter = CreateUnoService("com.sun.star.drawing.GraphicExportFilter")
+	oFilter.setSourceDocument(oShp)
+	oFilter.filter(aArgs())
 End Sub
 
-' ---------------------------------------------------------------- dialogue principal
-' Le dialogue ne s'affiche pas sans écran : il est construit, puis ses
-' réglages relus ; ils doivent revenir à l'identique
-Sub TestDialogue()
-	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, n As Integer, sAvant As String
-	Dim oPlage As Object, sMode As Variant
-	OuvrirJournal()
+' ---------------------------------------------------------------- main dialog
+' The dialog is not shown without a display: it is built, then its
+' settings are read back; they must come back unchanged
+Sub TestDialog()
+	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, n As Integer, sBefore As String
+	Dim oRange As Object, sMode As Variant
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
-	aPals = ChargerPalettes()
-	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
-	aDonneesDialogue = oPlage.getDataArray()
-	For Each sMode In Array("aucune", "contour")
-		aOpt = OptionsParDefaut()
-		aOpt(O_VALEURS) = True : aOpt(O_STYLE_LIBELLES) = "BI" : aOpt(O_TAILLE_LIBELLES) = 13
-		aOpt(O_CONTOUR_VALEURS) = sMode : aOpt(O_CONTOUR_LIBELLES) = IIf(sMode = "aucune", "contour", "aucune")
-		sAvant = TexteOptions(aOpt)
+	LoadTexts()
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDialogData = oRange.getDataArray()
+	For Each sMode In Array("none", "outline")
+		aOpt = DefaultOptions()
+		aOpt(O_VALUES) = True : aOpt(O_STYLE_LABELS) = "BI" : aOpt(O_SIZE_LABELS) = 13
+		aOpt(O_OUTLINE_VALUES) = sMode : aOpt(O_OUTLINE_LABELS) = IIf(sMode = "none", "outline", "none")
+		sBefore = OptionsText(aOpt)
 		bI = True
-		n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "etat", _
-			"", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
-		Journal("TEST dialogue " & sMode & " : relu a l'identique=" & (TexteOptions(aOpt) = sAvant) & " ; " & TexteOptions(aOpt))
+		n = MapDialog(Array(NewMap("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "state", _
+			"", "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
+		WriteLog("TEST dialog " & sMode & ": read back unchanged=" & (OptionsText(aOpt) = sBefore) & " ; " & OptionsText(aOpt))
 	Next sMode
-	FermerJournal()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- mise à jour partielle
-' État de la carte : couleur, texte alternatif et textes (triés) de chaque zone
-Function EtatCarteT(oG As Object) As String
+' ---------------------------------------------------------------- partial update
+' Map state: color, alternative text and texts (sorted) of each zone
+Function MapStateT(oG As Object) As String
 	Dim i As Long, o As Object, aT() As String, n As Long
 	For i = 0 To oG.getCount() - 1
 		o = oG.getByIndex(i)
 		ReDim Preserve aT(n) As String
-		If EstLegende(o.Name) Then
+		If IsLegend(o.Name) Then
 			aT(n) = "L " & o.getShapeType() & " " & o.Position.X & "," & o.Position.Y & IIf(o.getShapeType() = "com.sun.star.drawing.TextShape", " '" & o.getString() & "'", " " & Hex(o.FillColor))
-		ElseIf Left(o.Name, Len(PREFIXE_TEXTE)) = PREFIXE_TEXTE Then
+		ElseIf Left(o.Name, Len(TEXT_PREFIX)) = TEXT_PREFIX Then
 			aT(n) = "T " & o.Name & " '" & Replace(o.getString(), Chr(10), "/") & "' " & Hex(o.CharColor) & " " & o.Position.X & "," & o.Position.Y
 		Else
 			aT(n) = "Z " & o.Name & " " & Hex(o.FillColor) & " [" & o.Description & "]"
 		End If
 		n = n + 1
 	Next i
-	TrierTextes(aT)
-	EtatCarteT = Join(aT, Chr(10))
+	SortTexts(aT)
+	MapStateT = Join(aT, Chr(10))
 End Function
 
-' Modifie des cellules (adresse=valeur ; vide : cellule effacée) puis compare
-' la mise à jour (partielle ou non) à un recalcul complet
-Sub CasPartielT(sCas As String, aModifs As Variant, sLien As String, oG As Object)
-	Dim oCalc As Object, oFeuille As Object, k As Integer, a As Variant, t As Long, sApres As String, sComplet As String
+' Changes cells (address=value; empty: cell cleared) then compares
+' the update (partial or not) with a full recalculation
+Sub PartialCaseT(sScenario As String, aEdits As Variant, sLink As String, oG As Object)
+	Dim oCalc As Object, oSheet As Object, k As Integer, a As Variant, t As Long, sAfter As String, sFull As String
 	Dim nZones As Long
 	oCalc = DocCalcT()
-	oFeuille = oCalc.getSheets().getByIndex(0)
+	oSheet = oCalc.getSheets().getByIndex(0)
 	t = GetSystemTicks()
-	For k = 0 To UBound(aModifs)
-		a = Split(aModifs(k), "=")
+	For k = 0 To UBound(aEdits)
+		a = Split(aEdits(k), "=")
 		If a(1) = "" Then
-			oFeuille.getCellRangeByName(a(0)).setString("")
+			oSheet.getCellRangeByName(a(0)).setString("")
 		ElseIf IsNumeric(a(1)) Then
-			oFeuille.getCellRangeByName(a(0)).setValue(CDbl(a(1)))
+			oSheet.getCellRangeByName(a(0)).setValue(CDbl(a(1)))
 		Else
-			oFeuille.getCellRangeByName(a(0)).setString(a(1))
+			oSheet.getCellRangeByName(a(0)).setString(a(1))
 		End If
 	Next k
 	t = GetSystemTicks() - t
-	nZones = nDerniereMaj
-	sApres = EtatCarteT(oG)
-	RecalculerLien(oCalc, sLien, True)
-	sComplet = EtatCarteT(oG)
-	Journal("TEST " & sCas & " : " & IIf(nZones < 0, "carte entiere", nZones & " zone(s)") & " en " & t & " ms ; identique au recalcul complet : " & (sApres = sComplet))
-	If sApres <> sComplet Then Journal("TEST   difference : " & DifferenceT(sApres, sComplet))
+	nZones = nLastUpdate
+	sAfter = MapStateT(oG)
+	RecalcLink(oCalc, sLink, True)
+	sFull = MapStateT(oG)
+	WriteLog("TEST " & sScenario & ": " & IIf(nZones < 0, "whole map", nZones & " zone(s)") & " in " & t & " ms ; same as full recalculation: " & (sAfter = sFull))
+	If sAfter <> sFull Then WriteLog("TEST   difference : " & DifferenceT(sAfter, sFull))
 End Sub
 
 Function DifferenceT(a As String, b As String) As String
 	Dim aa As Variant, bb As Variant, i As Long
 	aa = Split(a, Chr(10)) : bb = Split(b, Chr(10))
 	For i = 0 To UBound(aa)
-		If i > UBound(bb) Then DifferenceT = "en trop : " & aa(i) : Exit Function
+		If i > UBound(bb) Then DifferenceT = "extra: " & aa(i) : Exit Function
 		If aa(i) <> bb(i) Then DifferenceT = aa(i) & "  <>  " & bb(i) : Exit Function
 	Next i
-	DifferenceT = "nombre de formes " & (UBound(aa) + 1) & " / " & (UBound(bb) + 1)
+	DifferenceT = "number of shapes " & (UBound(aa) + 1) & " / " & (UBound(bb) + 1)
 End Function
 
-Sub TestPartiel()
-	Dim oCalc As Object, oFeuille As Object, aOpt As Variant, sLien As String, oG As Object, i As Long, aModifs() As String
-	OuvrirJournal()
+Sub TestPartial()
+	Dim oCalc As Object, oSheet As Object, aOpt As Variant, sLink As String, oG As Object, i As Long, aEdits() As String
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
+	LoadTexts()
 	oCalc = DocCalcT()
-	oFeuille = oCalc.getSheets().getByIndex(0)
-	aOpt = OptionsParDefaut()
-	aOpt(O_VALEURS) = True : aOpt(O_LIBELLES) = True : aOpt(O_LEGENDE) = True
-	sLien = InsererCarteT(aOpt, "jaune-rouge")
-	oG = oFeuille.getDrawPage().getByIndex(0)
-	' Lignes : A2 = 01 (Ain, 389) ... ; 88 en ligne 90 ; min 10 (Lozère, 48), max 988 (Gard, 30)
-	CasPartielT("valeur changee dans les bornes (Ain 389 -> 700)", Array("B2=700"), sLien, oG)
-	CasPartielT("meme valeur ressaisie", Array("B2=700"), sLien, oG)
-	CasPartielT("libelle change (Ain -> AIN)", Array("C2=AIN"), sLien, oG)
-	CasPartielT("code change (01 -> 02, doublon)", Array("A2=02"), sLien, oG)
-	CasPartielT("code retabli", Array("A2=01"), sLien, oG)
-	CasPartielT("nouveau maximum (Ain -> 2000)", Array("B2=2000"), sLien, oG)
-	CasPartielT("valeur effacee (Ain)", Array("B2="), sLien, oG)
-	CasPartielT("valeur remise (Ain 389)", Array("B2=389"), sLien, oG)
-	ReDim aModifs(24) As String
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_LEGEND) = True
+	sLink = InsertMapT(aOpt, "jaune-rouge")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	' Rows: A2 = 01 (Ain, 389) ...; 88 in row 90; min 10 (Lozère, 48), max 988 (Gard, 30)
+	PartialCaseT("value changed within the bounds (Ain 389 -> 700)", Array("B2=700"), sLink, oG)
+	PartialCaseT("same value typed again", Array("B2=700"), sLink, oG)
+	PartialCaseT("label changed (Ain -> AIN)", Array("C2=AIN"), sLink, oG)
+	PartialCaseT("code changed (01 -> 02, duplicate)", Array("A2=02"), sLink, oG)
+	PartialCaseT("code restored", Array("A2=01"), sLink, oG)
+	PartialCaseT("new maximum (Ain -> 2000)", Array("B2=2000"), sLink, oG)
+	PartialCaseT("value cleared (Ain)", Array("B2="), sLink, oG)
+	PartialCaseT("value restored (Ain 389)", Array("B2=389"), sLink, oG)
+	ReDim aEdits(24) As String
 	For i = 0 To 24
-		aModifs(i) = "B" & (i + 3) & "=" & (500 + i)
+		aEdits(i) = "B" & (i + 3) & "=" & (500 + i)
 	Next i
-	CasPartielT("25 valeurs modifiees une a une", aModifs, sLien, oG)
-	FermerJournal()
+	PartialCaseT("25 values changed one by one", aEdits, sLink, oG)
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' Paragraphes d'une copie de contour du texte des Vosges : texte et transparence
-Function CopieT(oG As Object) As String
+' Paragraphs of an outline copy of the Vosges text: text and transparency
+Function CopyT(oG As Object) As String
 	Dim i As Long, o As Object, oEnum As Object, p As Object, s As String
 	For i = 0 To oG.getCount() - 1
 		o = oG.getByIndex(i)
-		If o.Name = PREFIXE_TEXTE & " 88" Then
+		If o.Name = TEXT_PREFIX & " 88" Then
 			oEnum = o.getText().createEnumeration()
 			s = ""
 			Do While oEnum.hasMoreElements()
 				p = oEnum.nextElement()
 				s = s & "[" & p.getString() & "]"
 			Loop
-			CopieT = "1re forme texte des Vosges : " & s & " couleur " & Hex(o.CharColor)
+			CopyT = "1st text shape of Vosges: " & s & " color " & Hex(o.CharColor)
 			Exit Function
 		End If
 	Next i
 End Function
 
-' ---------------------------------------------------------------- aperçus
-' Une image SVG s'affiche-t-elle dans un contrôle image de dialogue ?
-Sub TestApercuSvg()
-	Dim oModele As Object, oDlg As Object, oImg As Object, oGraphique As Object
+' ---------------------------------------------------------------- previews
+' Is an SVG image shown in a dialog image control?
+Sub TestSvgPreview()
+	Dim oModel As Object, oDlg As Object, oImg As Object, oGraphic As Object
 	Dim aSource(0) As New com.sun.star.beans.PropertyValue
-	OuvrirJournal()
+	OpenLog()
 	On Error GoTo ErrT
-	aSource(0).Name = "URL" : aSource(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/../essai.svg")
-	oGraphique = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
-	Journal("TEST svg charge : " & Not IsNull(oGraphique) & " ; type " & oGraphique.GraphicType & " ; taille " & oGraphique.Size100thMM.Width & "x" & oGraphique.Size100thMM.Height)
-	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
-	oModele.Width = 200 : oModele.Height = 150
-	AjouterControle(oModele, "ImageControl", "img", 10, 10, 100, 80, Array("ScaleImage", "ScaleMode", "ImageURL"), _
+	aSource(0).Name = "URL" : aSource(0).Value = ExtensionFolder() & "icons/nopreview.svg"
+	oGraphic = CreateUnoService("com.sun.star.graphic.GraphicProvider").queryGraphic(aSource())
+	WriteLog("TEST svg loaded: " & Not IsNull(oGraphic) & " ; type " & oGraphic.GraphicType & " ; size " & oGraphic.Size100thMM.Width & "x" & oGraphic.Size100thMM.Height)
+	oModel = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
+	oModel.Width = 200 : oModel.Height = 150
+	AddControl(oModel, "ImageControl", "img", 10, 10, 100, 80, Array("ScaleImage", "ScaleMode", "ImageURL"), _
 		Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, aSource(0).Value))
 	oDlg = CreateUnoService("com.sun.star.awt.UnoControlDialog")
-	oDlg.setModel(oModele)
+	oDlg.setModel(oModel)
 	oDlg.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), Nothing)
-	Journal("TEST controle image : graphique present=" & Not IsNull(oDlg.getControl("img").getModel().Graphic))
+	WriteLog("TEST image control: graphic present=" & Not IsNull(oDlg.getControl("img").getModel().Graphic))
 	oDlg.dispose()
-	FermerJournal()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- catalogue
-Sub ParametreT(sNom As String, v As Variant)
-	Dim oAcces As Object, aArgs(0) As New com.sun.star.beans.PropertyValue
-	aArgs(0).Name = "nodepath" : aArgs(0).Value = NOEUD_PARAMETRES
-	oAcces = CreateUnoService("com.sun.star.configuration.ConfigurationProvider") _
+' ---------------------------------------------------------------- catalog
+Sub SettingT(sName As String, v As Variant)
+	Dim oAccess As Object, aArgs(0) As New com.sun.star.beans.PropertyValue
+	aArgs(0).Name = "nodepath" : aArgs(0).Value = SETTINGS_NODE
+	oAccess = CreateUnoService("com.sun.star.configuration.ConfigurationProvider") _
 		.createInstanceWithArguments("com.sun.star.configuration.ConfigurationUpdateAccess", aArgs())
-	oAcces.setPropertyValue(sNom, v)
-	oAcces.commitChanges()
+	oAccess.setPropertyValue(sName, v)
+	oAccess.commitChanges()
 End Sub
 
-Function ListeT(aCartes As Variant) As String
+Function ListT(aMaps As Variant) As String
 	Dim i As Long, s As String
-	For i = 0 To UBound(aCartes)
-		s = s & aCartes(i)(C_ID) & "[" & aCartes(i)(C_SOURCE) & ", " & aCartes(i)(C_OBJETS) & " zones" _
-			& IIf(aCartes(i)(C_APERCU) <> "", ", apercu", "") & IIf(aCartes(i)(C_CODES) <> "", ", codes " & aCartes(i)(C_CODES), "") & "] "
+	For i = 0 To UBound(aMaps)
+		s = s & aMaps(i)(C_ID) & "[" & aMaps(i)(C_SOURCE) & ", " & aMaps(i)(C_OBJECTS) & " zones" _
+			& IIf(aMaps(i)(C_PREVIEW) <> "", ", preview", "") & IIf(aMaps(i)(C_CODES) <> "", ", codes " & aMaps(i)(C_CODES), "") & "] "
 	Next i
-	ListeT = (UBound(aCartes) + 1) & " carte(s) : " & s
+	ListT = (UBound(aMaps) + 1) & " map(s): " & s
 End Function
 
-Sub TestCatalogue()
-	Dim sTests As String, sFixtures As String, sFrance As String, s As String, aCartes As Variant, b As Boolean, i As Long
-	OuvrirJournal()
+Sub TestCatalog()
+	Dim sTests As String, sFixtures As String, sFrance As String, s As String, aMaps As Variant, b As Boolean, i As Long
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
-	Journal("TEST parametres par defaut : catalogue=" & UrlCatalogue() & " ; zones max=" & ZonesMax())
+	LoadTexts()
+	WriteLog("TEST default settings: catalog=" & CatalogUrl() & " ; max zones=" & MaxZones())
 	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
 	sFixtures = ConvertToURL(Environ("CALCMAP_FIXTURES"))
 	sFrance = ConvertToURL("/home/gabor/github/france-odg/output")
-	' Source france-odg : le catalogue du projet, aperçus en fichiers locaux
-	s = Replace(LireTexte(sFrance & "/maps.json"), "https://raw.githubusercontent.com/gaborjager/france-odg/main/output", sFrance)
-	EcrireTexte(sTests & "/source-france.json", s)
-	EcrireTexte(sTests & "/source-entreprise.json", Replace(Replace(LireTexte(sFixtures & "/source-entreprise.json"), _
+	' france-odg source: the project's catalog, previews as local files
+	s = Replace(ReadText(sFrance & "/maps.json"), "https://raw.githubusercontent.com/gaborjager/france-odg/main/output", sFrance)
+	WriteText(sTests & "/source-france.json", s)
+	WriteText(sTests & "/source-company.json", Replace(Replace(ReadText(sFixtures & "/source-company.json"), _
 		"@TESTS@", sTests), "@FRANCEODG@", sFrance))
-	EcrireTexte(sTests & "/agregat.json", Replace(LireTexte(sFixtures & "/agregat.json"), "@TESTS@", sTests))
-	ParametreT("Catalogue", sTests & "/agregat.json")
-	ParametreT("ZonesMax", 200)
-	aCartes = ChargerCatalogue(DossierCartes(), b)
-	Journal("TEST max 200 : en ligne=" & b & " ; " & ListeT(aCartes))
-	ParametreT("ZonesMax", 3000)
-	aCartes = ChargerCatalogue(DossierCartes(), b)
-	Journal("TEST max 3000 : " & ListeT(aCartes))
-	For i = 0 To UBound(aCartes)
-		If aCartes(i)(C_ID) = "departements" Or aCartes(i)(C_ID) = "secteurs" Then
-			s = ApercuLocal(aCartes(i))
-			Journal("TEST apercu " & aCartes(i)(C_ID) & " : '" & s & "' lisible=" & Not IsNull(GraphiqueDe(s)))
+	WriteText(sTests & "/aggregate.json", Replace(ReadText(sFixtures & "/aggregate.json"), "@TESTS@", sTests))
+	SettingT("Catalog", sTests & "/aggregate.json")
+	SettingT("MaxZones", 200)
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST max 200: online=" & b & " ; " & ListT(aMaps))
+	SettingT("MaxZones", 3000)
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST max 3000: " & ListT(aMaps))
+	For i = 0 To UBound(aMaps)
+		If aMaps(i)(C_ID) = "departements" Or aMaps(i)(C_ID) = "secteurs" Then
+			s = LocalPreview(aMaps(i))
+			WriteLog("TEST preview " & aMaps(i)(C_ID) & ": '" & s & "' readable=" & Not IsNull(GraphicOf(s)))
 		End If
 	Next i
-	Journal("TEST image par defaut lisible : " & Not IsNull(GraphiqueDe(DossierExtension() & "icons/nopreview.svg")))
-	' Catalogue injoignable : copie en cache
-	ParametreT("Catalogue", sTests & "/absent.json")
-	aCartes = ChargerCatalogue(DossierCartes(), b)
-	Journal("TEST catalogue injoignable : en ligne=" & b & " ; " & ListeT(aCartes))
-	FermerJournal()
+	WriteLog("TEST default image readable: " & Not IsNull(GraphicOf(ExtensionFolder() & "icons/nopreview.svg")))
+	' Catalog unreachable: cached copy
+	SettingT("Catalog", sTests & "/absent.json")
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST catalog unreachable: online=" & b & " ; " & ListT(aMaps))
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- paramètres
-' Paramètres lus, puis modifiés comme dans la configuration avancée
-Sub TestParametres()
-	OuvrirJournal()
-	Journal("TEST parametres lus : catalogue=" & UrlCatalogue() & " ; zones max=" & ZonesMax())
-	On Error GoTo Refus
-	ParametreT("ZonesMax", 7)
-	Journal("TEST modification par l'utilisateur acceptee : zones max=" & ZonesMax())
-	FermerJournal()
+' ---------------------------------------------------------------- settings
+' Settings read, then changed as in the expert configuration
+Sub TestSettings()
+	OpenLog()
+	WriteLog("TEST settings read: catalog=" & CatalogUrl() & " ; max zones=" & MaxZones())
+	On Error GoTo Refused
+	SettingT("MaxZones", 7)
+	WriteLog("TEST change by the user accepted: max zones=" & MaxZones())
+	CloseLog()
 	Exit Sub
-Refus:
-	Journal("TEST modification par l'utilisateur refusee (" & Error$ & ") : zones max=" & ZonesMax())
-	FermerJournal()
+Refused:
+	WriteLog("TEST change by the user refused (" & Error$ & "): max zones=" & MaxZones())
+	CloseLog()
 End Sub
 
-' ---------------------------------------------------------------- icône sur une carte
-' Carte sélectionnée (ou une de ses zones) : l'icône ouvre sa configuration
-' (le dialogue ne s'affiche pas sans écran) et n'insère pas de nouvelle carte
-Sub TestIconeSurCarte()
-	Dim oCalc As Object, oFeuille As Object, aOpt As Variant, sLien As String, oG As Object, n As Long
-	OuvrirJournal()
+' ---------------------------------------------------------------- icon on a map
+' Map selected (or one of its zones): the icon opens its configuration
+' (the dialog is not shown without a display) and does not insert a new map
+Sub TestIconOnMap()
+	Dim oCalc As Object, oSheet As Object, aOpt As Variant, sLink As String, oG As Object, n As Long
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
+	LoadTexts()
 	oCalc = DocCalcT()
-	oFeuille = oCalc.getSheets().getByIndex(0)
-	aOpt = OptionsParDefaut()
-	sLien = InsererCarteT(aOpt, "bleus")
-	oG = oFeuille.getDrawPage().getByIndex(0)
-	FermerJournal()
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	sLink = InsertMapT(aOpt, "bleus")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	CloseLog()
 	oCalc.getCurrentController().select(oG)
 	CalcMap()
-	n = oFeuille.getDrawPage().getCount()
+	n = oSheet.getDrawPage().getCount()
 	oCalc.getCurrentController().select(oG.getByIndex(10))
 	CalcMap()
-	JournalAjout("TEST apres l'icone sur la carte puis sur une zone : " & oFeuille.getDrawPage().getCount() & " forme(s) dans la feuille (avant : " & n & ")")
+	AppendLog("TEST after the icon on the map then on a zone: " & oSheet.getDrawPage().getCount() & " shape(s) in the sheet (before: " & n & ")")
 	Exit Sub
 ErrT:
-	JournalAjout("TEST ERREUR ligne " & Erl & " : " & Error$)
+	AppendLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
 
-' ---------------------------------------------------------------- traductions
-' Chaque langue : fichier chargé, toutes les clés traduites, exemple lu en
-' UTF-8 ; dialogue construit dans quelques langues
-Sub TestTraductions()
-	Dim aCodes As Variant, sCode As Variant, aCles As Variant, sCle As Variant, nManque As Integer, s As String
-	Dim oPlage As Object, aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, n As Integer
-	OuvrirJournal()
+' ---------------------------------------------------------------- translations
+' Each language: file loaded, all keys translated, example read as
+' UTF-8; dialog built in a few languages
+Sub TestTranslations()
+	Dim aCodes As Variant, sCode As Variant, aKeys As Variant, sKey As Variant, nMissing As Integer, s As String
+	Dim oRange As Object, aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, n As Integer
+	OpenLog()
 	On Error GoTo ErrT
 	aCodes = Split("en fr ar bg cs da de el es et fi ga hi hr hu id it ja ko lt lv mt nb nl pl pt ro ru sk sl sv tr uk zh", " ")
-	aCles = Array("dlg.grp_map", "dlg.show_values", "ed.help", "msg.inserted_as_image", "dlg.zones", "menu.configure")
+	aKeys = Array("dlg.grp_map", "dlg.show_values", "ed.help", "msg.inserted_as_image", "dlg.zones", "menu.configure")
 	For Each sCode In aCodes
-		sLangue = sCode
-		ChargerTextes()
-		nManque = 0
-		For Each sCle In aCles
-			If Tr(sCle) = sCle Then nManque = nManque + 1
-		Next sCle
-		s = s & sCode & "=" & Tr("dlg.grp_map") & IIf(nManque > 0, "(!" & nManque & ")", "") & " "
+		sLanguage = sCode
+		LoadTexts()
+		nMissing = 0
+		For Each sKey In aKeys
+			If Tr(sKey) = sKey Then nMissing = nMissing + 1
+		Next sKey
+		s = s & sCode & "=" & Tr("dlg.grp_map") & IIf(nMissing > 0, "(!" & nMissing & ")", "") & " "
 	Next sCode
-	Journal("TEST langues : " & s)
-	sLangue = "fr" : ChargerTextes()
-	Journal("TEST francais different de l'anglais : " & Tr("dlg.show_values") & " / %3 : " & Tr("ed.info", 1, 2, 96))
-	aPals = ChargerPalettes()
-	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
-	aDonneesDialogue = oPlage.getDataArray()
+	WriteLog("TEST languages: " & s)
+	sLanguage = "fr" : LoadTexts()
+	WriteLog("TEST French differs from English: " & Tr("dlg.show_values") & " / %3 : " & Tr("ed.info", 1, 2, 96))
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDialogData = oRange.getDataArray()
 	For Each sCode In Array("de", "ar", "ja")
-		sLangue = sCode : ChargerTextes()
-		aOpt = OptionsParDefaut()
+		sLanguage = sCode : LoadTexts()
+		aOpt = DefaultOptions()
 		bI = True
-		n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "", _
-			"", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
-		Journal("TEST dialogue en " & sCode & " : construit (resultat " & n & ")")
+		n = MapDialog(Array(NewMap("departements", "Dep", "d", "", "d.odg", 1, "", True)), aPals, "", _
+			"", "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
+		WriteLog("TEST dialog in " & sCode & ": built (result " & n & ")")
 	Next sCode
-	FermerJournal()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- colonnes
-' Noms des colonnes : 3 premières valeurs, « , ... » seulement si d'autres suivent
-Sub TestNomsColonnes()
-	Dim oFeuille As Object
-	OuvrirJournal()
+' ---------------------------------------------------------------- columns
+' Column names: first 3 values, ", ..." only if more follow
+Sub TestColumnNames()
+	Dim oSheet As Object
+	OpenLog()
 	On Error GoTo ErrT
-	oFeuille = DocCalcT().getSheets().getByIndex(0)
-	Journal("TEST 96 lignes : " & Join(NomsColonnes(PlageDeDonnees(PlageSelectionnee(oFeuille.getCellRangeByName("A1:C1048576")))), " | "))
-	Journal("TEST 3 lignes : " & Join(NomsColonnes(oFeuille.getCellRangeByName("A1:C4")), " | "))
-	Journal("TEST 2 lignes : " & Join(NomsColonnes(oFeuille.getCellRangeByName("A1:C3")), " | "))
-	FermerJournal()
+	oSheet = DocCalcT().getSheets().getByIndex(0)
+	WriteLog("TEST 96 rows: " & Join(ColumnNames(DataRange(SelectedRange(oSheet.getCellRangeByName("A1:C1048576")))), " | "))
+	WriteLog("TEST 3 rows: " & Join(ColumnNames(oSheet.getCellRangeByName("A1:C4")), " | "))
+	WriteLog("TEST 2 rows: " & Join(ColumnNames(oSheet.getCellRangeByName("A1:C3")), " | "))
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
 
-' ---------------------------------------------------------------- picto des codes, géométrie
-' Codes de la carte cherchés dans la colonne du code : coche, puis triangle
-' quand une autre colonne est choisie ; contrôles dans le dialogue, sans
-' chevauchement hors des cadres
-Sub TestPictoCodes()
-	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, oPlage As Object
+' ---------------------------------------------------------------- codes icon, geometry
+' Map codes looked up in the code column: tick, then triangle
+' when another column is chosen; controls inside the dialog, without
+' overlap outside the frames
+Sub TestCodesIcon()
+	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, oRange As Object
 	Dim oImg As Object, aCtrl As Variant, i As Integer, j As Integer, a As Object, b As Object, n As Integer
-	OuvrirJournal()
+	OpenLog()
 	On Error GoTo ErrT
-	ChargerTextes()
-	aPals = ChargerPalettes()
-	oPlage = PlageDeDonnees(PlageSelectionnee(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
-	aDonneesDialogue = oPlage.getDataArray()
-	aOpt = OptionsParDefaut()
+	LoadTexts()
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDialogData = oRange.getDataArray()
+	aOpt = DefaultOptions()
 	bI = True
-	bGarderDialogue = True
-	n = DialogueCartes(Array(NouvelleCarte("departements", "Dep", "d", "", "d.odg", 1, "", True, 101, "", "", "", "01, 02, 2A, 2B")), _
-		aPals, "etat", "", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
-	oImg = oDialogue.getControl("imgCodes")
-	Journal("TEST picto code : visible=" & oImg.isVisible() & " aide=" & oImg.getModel().HelpText)
-	oDialogue.getControl("lstCode").selectItemPos(2, True)
-	ListeCode_itemStateChanged(Nothing)
-	Journal("TEST picto nom : aide=" & oImg.getModel().HelpText)
+	bKeepDialog = True
+	n = MapDialog(Array(NewMap("departements", "Dep", "d", "", "d.odg", 1, "", True, 101, "", "", "", "01, 02, 2A, 2B")), _
+		aPals, "state", "", "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
+	oImg = oDialog.getControl("imgCodes")
+	WriteLog("TEST icon, code column: visible=" & oImg.isVisible() & " help=" & oImg.getModel().HelpText)
+	oDialog.getControl("lstCode").selectItemPos(2, True)
+	CodeList_itemStateChanged(Nothing)
+	WriteLog("TEST icon, name column: help=" & oImg.getModel().HelpText)
 	n = 0
-	aCtrl = oDialogue.getModel().getControlModels()
+	aCtrl = oDialog.getModel().getControlModels()
 	For i = 0 To UBound(aCtrl)
 		a = aCtrl(i)
-		If a.PositionX + a.Width > oDialogue.getModel().Width Or a.PositionY + a.Height > oDialogue.getModel().Height Then
-			Journal("TEST geometrie hors dialogue : " & a.Name) : n = n + 1
+		If a.PositionX + a.Width > oDialog.getModel().Width Or a.PositionY + a.Height > oDialog.getModel().Height Then
+			WriteLog("TEST geometry outside the dialog: " & a.Name) : n = n + 1
 		End If
 		For j = i + 1 To UBound(aCtrl)
 			b = aCtrl(j)
-			' Cadres, titre (à la place de la liste) et nuances inutilisées (cachées) exclus
-			If InStr(a.Name & b.Name, "grp") = 0 And InStr(a.Name & b.Name, "lblTitreCarte") = 0 And _
-				Not (Left(a.Name, 6) = "nuance" And Left(b.Name, 6) = "nuance") And _
+			' Frames, title (in place of the list) and unused (hidden) shades excluded
+			If InStr(a.Name & b.Name, "grp") = 0 And InStr(a.Name & b.Name, "lblMapTitle") = 0 And _
+				Not (Left(a.Name, 5) = "shade" And Left(b.Name, 5) = "shade") And _
 				a.PositionX < b.PositionX + b.Width And b.PositionX < a.PositionX + a.Width And _
 				a.PositionY < b.PositionY + b.Height And b.PositionY < a.PositionY + a.Height Then
-				Journal("TEST geometrie chevauchement : " & a.Name & " / " & b.Name) : n = n + 1
+				WriteLog("TEST geometry overlap: " & a.Name & " / " & b.Name) : n = n + 1
 			End If
 		Next j
 	Next i
-	Journal("TEST geometrie : " & (UBound(aCtrl) + 1) & " controles, " & n & " probleme(s)")
-	bGarderDialogue = False
-	oDialogue.dispose()
-	FermerJournal()
+	WriteLog("TEST geometry: " & (UBound(aCtrl) + 1) & " controls, " & n & " problem(s)")
+	bKeepDialog = False
+	oDialog.dispose()
+	CloseLog()
 	Exit Sub
 ErrT:
-	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- names of older versions
+' Map made by a version up to 0.19: French shape names and "aucune" outline;
+' recoloring (full, then partial) replaces them without duplicates
+Function OldNamesT(oG As Object) As String
+	Dim i As Long, nOld As Long, nText As Long, nLegend As Long, sName As String
+	For i = 0 To oG.getCount() - 1
+		sName = oG.getByIndex(i).Name
+		If Left(sName, Len(OLD_TEXT_PREFIX)) = OLD_TEXT_PREFIX Or Left(sName, Len(OLD_LEGEND_PREFIX)) = OLD_LEGEND_PREFIX Then
+			nOld = nOld + 1
+		ElseIf Left(sName, Len(TEXT_PREFIX)) = TEXT_PREFIX Then
+			nText = nText + 1
+		ElseIf IsLegend(sName) Then
+			nLegend = nLegend + 1
+		End If
+	Next i
+	OldNamesT = nText & " texts, " & nLegend & " legend shapes, " & nOld & " old names"
+End Function
+
+Sub TestOldNames()
+	Dim oCalc As Object, oSheet As Object, oG As Object, aOpt As Variant, sLink As String, i As Long, o As Object
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_LEGEND) = True
+	aOpt(O_OUTLINE_VALUES) = OLD_OUTLINE_NONE : aOpt(O_OUTLINE_LABELS) = OLD_OUTLINE_NONE
+	sLink = InsertMapT(aOpt, "bleus")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	WriteLog("TEST inserted with outline 'aucune': " & OldNamesT(oG))
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If Left(o.Name, Len(TEXT_PREFIX)) = TEXT_PREFIX Then
+			o.Name = OLD_TEXT_PREFIX & Mid(o.Name, Len(TEXT_PREFIX) + 1)
+		ElseIf IsLegend(o.Name) Then
+			o.Name = OLD_LEGEND_PREFIX
+		End If
+	Next i
+	WriteLog("TEST renamed as in 0.19: " & OldNamesT(oG))
+	RecalcLink(oCalc, sLink, True)
+	WriteLog("TEST full recoloring: " & OldNamesT(oG))
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If o.Name = TEXT_PREFIX & " 88" Then o.Name = OLD_TEXT_PREFIX & " 88"
+	Next i
+	For i = 1 To 200
+		If oSheet.getCellByPosition(0, i).getString() = "88" Then oSheet.getCellByPosition(1, i).setValue(500)
+	Next i
+	WriteLog("TEST partial update of 88 (" & nLastUpdate & " zone(s)): " & OldNamesT(oG))
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
