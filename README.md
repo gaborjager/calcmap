@@ -18,7 +18,7 @@ code INSEE dans son nom.
    au besoin personnaliser les classes avec **Classes…** (voir ci-dessous).
 5. Vérifier les colonnes du **code**, des **valeurs** et des **libellés** : chaque
    liste propose les colonnes sélectionnées, avec leur en-tête et leurs premières
-   valeurs (ex. « D — Taux : 12,5, 8,1, 9,7 »).
+   valeurs (suivies de « , ... » si la colonne continue) (ex. « D — Taux : 12,5, 8,1, 9,7 »).
 6. Laisser cochée **Insérer la carte dans la feuille Calc** pour placer la carte
    dans la feuille, ou la décocher pour l'ouvrir dans Draw.
 7. Cocher **Afficher les valeurs** et/ou **Afficher les libellés**
@@ -33,8 +33,9 @@ code INSEE dans son nom.
 > communes (35 191) sont écartés.
 
 Le dialogue est organisé en cadres : **Carte** (fond de carte, son aperçu,
-insertion dans la feuille, colonne du code), **Valeurs** (colonne, couleurs et
-classes, affichage des valeurs), **Libellés** (colonne, affichage) et **Légende**.
+insertion dans la feuille), **Code** (colonne, et à droite des exemples de codes
+de la carte pour comparer), **Valeurs** (colonne, couleurs et classes, affichage
+des valeurs), **Libellés** (colonne, affichage) et **Légende**.
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
@@ -273,7 +274,8 @@ l'instant une seule, france-odg.
   pour un partage réseau.
 - Champs utilisés d'une carte : `id`, `title`, `description`, `url`,
   `filename`, `size`, `sha256`, et s'ils existent `objects` (nombre de zones,
-  pour le filtre) et `preview` / `preview_sha256` (aperçu SVG, PNG ou JPEG).
+  pour le filtre), `preview` / `preview_sha256` (aperçu SVG, PNG ou JPEG) et
+  `code_examples` (exemples de codes des zones, montrés dans le cadre Code).
 
 ### Paramètres
 

@@ -419,7 +419,7 @@ Function ListeT(aCartes As Variant) As String
 	Dim i As Long, s As String
 	For i = 0 To UBound(aCartes)
 		s = s & aCartes(i)(C_ID) & "[" & aCartes(i)(C_SOURCE) & ", " & aCartes(i)(C_OBJETS) & " zones" _
-			& IIf(aCartes(i)(C_APERCU) <> "", ", apercu", "") & "] "
+			& IIf(aCartes(i)(C_APERCU) <> "", ", apercu", "") & IIf(aCartes(i)(C_CODES) <> "", ", codes " & aCartes(i)(C_CODES), "") & "] "
 	Next i
 	ListeT = (UBound(aCartes) + 1) & " carte(s) : " & s
 End Function
@@ -539,6 +539,23 @@ Sub TestTraductions()
 			"", "bleus", iC, iP, bI, aOpt, NomsColonnes(oPlage), Nothing, False)
 		Journal("TEST dialogue en " & sCode & " : construit (resultat " & n & ")")
 	Next sCode
+	FermerJournal()
+	Exit Sub
+ErrT:
+	Journal("TEST ERREUR ligne " & Erl & " : " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- colonnes
+' Noms des colonnes : 3 premières valeurs, « , ... » seulement si d'autres suivent
+Sub TestNomsColonnes()
+	Dim oFeuille As Object
+	OuvrirJournal()
+	On Error GoTo ErrT
+	oFeuille = DocCalcT().getSheets().getByIndex(0)
+	Journal("TEST 96 lignes : " & Join(NomsColonnes(PlageDeDonnees(PlageSelectionnee(oFeuille.getCellRangeByName("A1:C1048576")))), " | "))
+	Journal("TEST 3 lignes : " & Join(NomsColonnes(oFeuille.getCellRangeByName("A1:C4")), " | "))
+	Journal("TEST 2 lignes : " & Join(NomsColonnes(oFeuille.getCellRangeByName("A1:C3")), " | "))
 	FermerJournal()
 	Exit Sub
 ErrT:

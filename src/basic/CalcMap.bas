@@ -71,7 +71,7 @@ REM  Mettre JOURNAL_DETAILLE à True pour tracer aussi chaque zone.
 
 Option Explicit
 
-Const VERSION = "0.15.1"
+Const VERSION = "0.16.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const JOURNAL_DETAILLE = False      ' True : une ligne par zone dans le journal
 Const ECRIRE_TEXTE_ALT = True       ' True : valeur ajoutée au texte alternatif (Description)
@@ -124,6 +124,7 @@ Const C_OBJETS = 8                  ' nombre de zones (0 : inconnu)
 Const C_APERCU = 9                  ' URL de l'aperçu ("" : aucun)
 Const C_APERCU_SHA = 10
 Const C_SOURCE = 11                 ' source du catalogue agrégé
+Const C_CODES = 12                  ' exemples de codes des zones, ex. "01, 02, 03, 04" ("" : inconnus)
 
 ' Options d'une carte (tableau renvoyé par OptionsParDefaut). Même ordre dans
 ' le lien (à partir du 6e champ) ; noms dans les préférences : NOMS_OPTIONS.
@@ -1424,6 +1425,16 @@ Function NomsColonnes(oPlage As Object) As Variant
 				nValeurs = nValeurs + 1
 			End If
 		Next r
+		' D'autres valeurs suivent : « , ... »
+		If nValeurs = NB_VALEURS_APERCU Then
+			Do While r < nLignes And r < nDebut + NB_LIGNES_APERCU
+				If Trim(oPlage.getCellByPosition(c, r).getString()) <> "" Then
+					sValeurs = sValeurs & ", ..."
+					Exit Do
+				End If
+				r = r + 1
+			Loop
+		End If
 		If sValeurs <> "" Then aNoms(c) = aNoms(c) & " : " & sValeurs
 	Next c
 	NomsColonnes = aNoms
@@ -1763,7 +1774,8 @@ Function LireCatalogue(sUrl As String, sDossier As String, sSource As String) As
 			aRes(n) = NouvelleCarte(JsonTexte(oCarte, "id"), JsonTexteTraduit(oCarte, "title"), _
 				JsonTexteTraduit(oCarte, "description"), sUrlCarte, sFichier, JsonNombre(oCarte, "size"), _
 				LCase(JsonTexte(oCarte, "sha256")), oSFA.exists(sDossier & sFichier), _
-				JsonNombre(oCarte, "objects"), sApercu, LCase(JsonTexte(oCarte, "preview_sha256")), sSource)
+				JsonNombre(oCarte, "objects"), sApercu, LCase(JsonTexte(oCarte, "preview_sha256")), sSource, _
+				ExemplesCodes(JsonChamp(oCarte, "code_examples")))
 			n = n + 1
 		Else
 			Journal("Catalogue : entrée " & (i + 1) & " ignorée (fichier ou URL invalide)")
@@ -1816,15 +1828,26 @@ Erreur:
 End Function
 
 Function NouvelleCarte(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale, _
-		Optional nObjets, Optional sApercu, Optional sApercuSha, Optional sSource) As Variant
-	Dim v(3) As Variant
-	v(0) = 0 : v(1) = "" : v(2) = "" : v(3) = ""
+		Optional nObjets, Optional sApercu, Optional sApercuSha, Optional sSource, Optional sCodes) As Variant
+	Dim v(4) As Variant
+	v(0) = 0 : v(1) = "" : v(2) = "" : v(3) = "" : v(4) = ""
 	If Not IsMissing(nObjets) Then v(0) = nObjets
 	If Not IsMissing(sApercu) Then v(1) = sApercu
 	If Not IsMissing(sApercuSha) Then v(2) = sApercuSha
 	If Not IsMissing(sSource) Then v(3) = sSource
+	If Not IsMissing(sCodes) Then v(4) = sCodes
 	NouvelleCarte = Array(sId, sTitre, sDescription, sUrl, sFichier, nTaille, sSha256, bLocale, _
-		v(0), v(1), v(2), v(3))
+		v(0), v(1), v(2), v(3), v(4))
+End Function
+
+' Exemples de codes du catalogue (tableau JSON de textes) : « 01, 02, 03 »
+Function ExemplesCodes(oListe As Variant) As String
+	Dim aCodes As Variant, i As Integer, s As String
+	aCodes = JsonElements(oListe)
+	For i = 0 To UBound(aCodes)
+		If VarType(aCodes(i)) = 8 And i < 6 Then s = s & IIf(s = "", "", ", ") & Left(aCodes(i), 12)
+	Next i
+	ExemplesCodes = s
 End Function
 
 ' Fichier local de l'aperçu d'une carte (SVG, PNG ou JPEG), téléchargé dans
@@ -2163,7 +2186,7 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 	oModele = CreateUnoService("com.sun.star.awt.UnoControlDialogModel")
 	oModele.Title = IIf(bConfig, Tr("dlg.config_title"), Tr("app.title"))
 	oModele.Width = 330
-	oModele.Height = 324
+	oModele.Height = 358
 	' Disposition compacte : avec le module GTK, les contrôles sont plus grands
 	' Carte : fond de carte, description, insertion dans la feuille, colonne du
 	' code (correspondance avec les zones), aperçu
@@ -2175,52 +2198,56 @@ Function DialogueCartes(aCartes As Variant, aPalettes As Variant, sEtat As Strin
 		AjouterControle(oModele, "FixedText", "lblTitreCarte", 12, 18, 218, 12, _
 			Array("Label", "FontWeight"), Array(IIf(nFin >= 0, aLibelles(0), ""), com.sun.star.awt.FontWeight.BOLD))
 	End If
-	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 218, 26, Array("MultiLine"), Array(True))
+	AjouterControle(oModele, "FixedText", "lblDescription", 12, 33, 218, 36, Array("MultiLine"), Array(True))
 	' Aperçu de la carte choisie (image par défaut si aucun)
 	AjouterControle(oModele, "ImageControl", "imgApercu", 236, 14, 84, 70, _
 		Array("ScaleImage", "ScaleMode", "Border"), Array(True, com.sun.star.awt.ImageScaleMode.ISOTROPIC, 1))
 	' Sur deux lignes : libellé long dans plusieurs langues
-	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 60, 218, 20, _
+	AjouterControle(oModele, "CheckBox", "chkInserer", 12, 72, 218, 20, _
 		Array("Label", "State", "Enabled", "MultiLine"), Array(Tr("dlg.insert_in_calc"), IIf(bInserer, 1, 0), Not bConfig, True))
-	AjouterListeColonne(oModele, "Code", 82, aColonnes, aOptions(O_COL_CODE), Tr("dlg.grp_code"), 176)
+	' Code : sa colonne, et des exemples de codes de la carte pour comparer
+	AjouterCadre(oModele, "grpCode", 4, 104, 322, 30, Tr("dlg.grp_code"))
+	AjouterListeColonne(oModele, "Code", 116, aColonnes, aOptions(O_COL_CODE), Tr("dlg.column"), 150)
+	AjouterControle(oModele, "FixedText", "lblCodesCarte", 210, 118, 108, 10, _
+		Array("Label", "TextColor", "HelpText"), Array("", RGB(96, 96, 96), Tr("dlg.map_codes_help")))
 	' Valeurs : colonne, couleurs (palette, aperçu, classes), affichage
-	AjouterCadre(oModele, "grpValeurs", 4, 104, 322, 94, Tr("dlg.grp_values"))
-	AjouterListeColonne(oModele, "Valeur", 116, aColonnes, aOptions(O_COL_VALEUR), Tr("dlg.column"), 264)
-	AjouterControle(oModele, "FixedText", "lblPalette", 12, 134, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
-	AjouterControle(oModele, "ListBox", "lstPalette", 54, 132, 110, 14, _
+	AjouterCadre(oModele, "grpValeurs", 4, 138, 322, 94, Tr("dlg.grp_values"))
+	AjouterListeColonne(oModele, "Valeur", 150, aColonnes, aOptions(O_COL_VALEUR), Tr("dlg.column"), 264)
+	AjouterControle(oModele, "FixedText", "lblPalette", 12, 168, 40, 10, Array("Label"), Array(Tr("dlg.colors")))
+	AjouterControle(oModele, "ListBox", "lstPalette", 54, 166, 110, 14, _
 		Array("Dropdown", "LineCount", "StringItemList"), Array(True, 16, aNomsPal))
 	For i = 0 To NB_NUANCES_APERCU - 1
-		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 132, 10, 14, Array("Border"), Array(2))
+		AjouterControle(oModele, "FixedText", "nuance" & i, APERCU_X, 166, 10, 14, Array("Border"), Array(2))
 	Next i
-	AjouterControle(oModele, "Button", "btnClasses", 258, 132, 60, 14, _
+	AjouterControle(oModele, "Button", "btnClasses", 258, 166, 60, 14, _
 		Array("Label", "PushButtonType", "HelpText"), Array(Tr("dlg.classes"), 0, Tr("dlg.classes_help")))
-	AjouterControle(oModele, "FixedText", "lblClasses", 54, 148, 264, 10, _
+	AjouterControle(oModele, "FixedText", "lblClasses", 54, 182, 264, 10, _
 		Array("Label", "TextColor"), Array("", RGB(96, 96, 96)))
 	sClassesDialogue = aOptions(O_CLASSES)
-	AjouterLigneTexte(oModele, "Valeurs", 163, Tr("dlg.show_values"), aOptions(O_VALEURS), _
+	AjouterLigneTexte(oModele, "Valeurs", 197, Tr("dlg.show_values"), aOptions(O_VALEURS), _
 		aOptions(O_TAILLE_VALEURS), aPolices, aOptions(O_POLICE_VALEURS), aOptions(O_STYLE_VALEURS), _
 		aOptions(O_CONTOUR_VALEURS) <> LISIBILITE_AUCUNE)
 	' Libellés : colonne, affichage
-	AjouterCadre(oModele, "grpLibelles", 4, 202, 322, 62, Tr("dlg.grp_labels"))
-	AjouterListeColonne(oModele, "Libelle", 214, aColonnes, aOptions(O_COL_LIBELLE), Tr("dlg.column"), 264)
-	AjouterLigneTexte(oModele, "Libelles", 231, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
+	AjouterCadre(oModele, "grpLibelles", 4, 236, 322, 62, Tr("dlg.grp_labels"))
+	AjouterListeColonne(oModele, "Libelle", 248, aColonnes, aOptions(O_COL_LIBELLE), Tr("dlg.column"), 264)
+	AjouterLigneTexte(oModele, "Libelles", 265, Tr("dlg.show_labels"), aOptions(O_LIBELLES), _
 		aOptions(O_TAILLE_LIBELLES), aPolices, aOptions(O_POLICE_LIBELLES), aOptions(O_STYLE_LIBELLES), _
 		aOptions(O_CONTOUR_LIBELLES) <> LISIBILITE_AUCUNE)
 	' Légende
-	AjouterCadre(oModele, "grpLegende", 4, 268, 322, 30, Tr("dlg.grp_legend"))
-	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 281, 150, 12, _
+	AjouterCadre(oModele, "grpLegende", 4, 302, 322, 30, Tr("dlg.grp_legend"))
+	AjouterControle(oModele, "CheckBox", "chkLegende", 12, 315, 150, 12, _
 		Array("Label", "State"), Array(Tr("dlg.show_legend"), IIf(aOptions(O_LEGENDE), 1, 0)))
-	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 168, 281, 150, 12, _
+	AjouterControle(oModele, "CheckBox", "chkLegendeValeurs", 168, 315, 150, 12, _
 		Array("Label", "State", "Enabled"), Array(Tr("dlg.legend_values"), IIf(aOptions(O_LEGENDE_VALEURS), 1, 0), _
 		aOptions(O_LEGENDE)))
 	' Boutons, et l'état du catalogue entre « Autre fichier… » et OK
-	AjouterControle(oModele, "Button", "btnAutre", 6, 304, 70, 14, _
+	AjouterControle(oModele, "Button", "btnAutre", 6, 338, 70, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.other_file"), 0))
-	AjouterControle(oModele, "FixedText", "lblEtat", 80, 302, 134, 20, _
+	AjouterControle(oModele, "FixedText", "lblEtat", 80, 336, 134, 20, _
 		Array("MultiLine", "Label", "TextColor"), Array(True, sEtat, RGB(96, 96, 96)))
-	AjouterControle(oModele, "Button", "btnOk", 218, 304, 50, 14, _
+	AjouterControle(oModele, "Button", "btnOk", 218, 338, 50, 14, _
 		Array("Label", "PushButtonType", "DefaultButton", "Enabled"), Array(Tr("dlg.ok"), 1, True, nFin >= 0))
-	AjouterControle(oModele, "Button", "btnAnnuler", 274, 304, 50, 14, _
+	AjouterControle(oModele, "Button", "btnAnnuler", 274, 338, 50, 14, _
 		Array("Label", "PushButtonType"), Array(Tr("dlg.cancel"), 2))
 	If nFin >= 0 Then oModele.getByName("lstCarte").SelectedItems = Array(CInt(iDefaut))
 	oModele.getByName("lstPalette").SelectedItems = Array(CInt(iPalDefaut))
@@ -2436,6 +2463,8 @@ Sub AfficherDescription(ByVal i As Long)
 	If aCarte(C_TAILLE) > 0 Then s = s & " - " & TailleLisible(aCarte(C_TAILLE))
 	s = s & " - " & IIf(aCarte(C_LOCALE), Tr("dlg.downloaded"), Tr("dlg.will_download"))
 	oDialogue.getControl("lblDescription").getModel().Label = s
+	oDialogue.getControl("lblCodesCarte").getModel().Label = _
+		IIf(aCarte(C_CODES) = "", "", Tr("dlg.map_codes", aCarte(C_CODES) & ", ..."))
 	AfficherApercu(aCarte)
 End Sub
 
