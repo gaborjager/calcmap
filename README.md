@@ -33,8 +33,8 @@ code INSEE dans son nom.
 > communes (35 191) sont écartés.
 
 Le dialogue est organisé en cadres : **Carte** (fond de carte, son aperçu,
-insertion dans la feuille), **Code** (colonne), **Valeurs** (colonne, couleurs et classes,
-affichage des valeurs), **Libellés** (colonne, affichage) et **Légende**.
+insertion dans la feuille, colonne du code), **Valeurs** (colonne, couleurs et
+classes, affichage des valeurs), **Libellés** (colonne, affichage) et **Légende**.
 
 La carte s'ouvre dans Draw, coloriée en classes d'intervalles égaux (autant de
 classes que la palette compte de couleurs : 5, 7 ou 10), ou en dégradé continu
