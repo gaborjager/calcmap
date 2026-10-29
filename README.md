@@ -457,7 +457,8 @@ with the columns *Code | Value (test) | Name* and one row per zone. Select
 columns A:B then run the command with the matching map: all the zones must be
 colored, without unknown codes in the log.
 
-To regenerate them from the catalog's maps (random but reproducible values):
+To regenerate them from the catalog's maps (random but reproducible values),
+read from the local copy of the ODG Atlas if any (see below), else downloaded:
 
 ```bash
 python3 tests/generate_tests.py                        # missing files
@@ -483,6 +484,10 @@ tests/headless/run.sh TestSettings         # settings: default values, change
 tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja
 tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
 tests/headless/run.sh TestEuMap            # European Union map colored from ISO codes
+tests/headless/run.sh TestWorldMaps        # world continents and countries: every zone colored
+tests/headless/run.sh TestMapReadability   # text outline settings: shapes, recoloring time
+tests/headless/run.sh TestColumnNames      # column names with examples
+tests/headless/run.sh TestSvgPreview       # SVG image in a dialog
 ```
 
 The tests use a local copy of the ODG Atlas, next to this repository
@@ -518,8 +523,10 @@ calcmap/
     ├── test-regions.ods        13 regions        ┐
     ├── test-departements.ods   96 departments    │ Code | Value (test) | Name,
     ├── test-cantons.ods        2,294 cantons     │ one row per zone of the map
-    ├── test-communes.ods       35,191 communes   ┘
+    ├── test-communes.ods       35,191 communes   │
+    ├── test-eu-countries.ods   27 EU countries   │
+    ├── test-world-continents.ods 7 continents    │
+    ├── test-world-countries.ods 237 countries    ┘
     ├── test-edge-cases.ods     headers, blanks, texts, errors, duplicates…
-    ├── preview-test-departements.png
     └── headless/               tests without a display (run.sh, driver.py, macros, fixtures)
 ```

@@ -29,7 +29,6 @@ export CALCMAP_TESTS="$WORK"
 export CALCMAP_FIXTURES="$HERE/fixtures"
 # Local copy of the ODG Atlas (maps used by the tests)
 export CALCMAP_ATLAS="${ODG_ATLAS:-$PROJECT/../odg-atlas}"
-[ -d "$CALCMAP_ATLAS" ] || CALCMAP_ATLAS="$PROJECT/../france-odg"
 timeout 300 python3 "$HERE/driver.py" "$WORK/profile" "$WORK/spreadsheet.ods" "$MACRO" "$WORK/map.png" "$PORT" \
 	> /dev/null 2>&1 || true
 grep -E "TEST|ERROR" "$WORK/profile/user/calcmap.log" | cut -c22-

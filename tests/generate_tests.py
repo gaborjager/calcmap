@@ -2,9 +2,13 @@
 """Generates one test spreadsheet (.ods) per base map of the ODG Atlas catalog.
 
 Usage:
-    python3 tests/generate_tests.py                 # regions, departements, cantons, communes
+    python3 tests/generate_tests.py                 # all the maps of the catalog
     python3 tests/generate_tests.py departements    # chosen maps (catalog id)
     python3 tests/generate_tests.py --force         # also rewrites existing files
+
+The catalog and the maps are read from the local copy of the ODG Atlas next
+to this repository (../odg-atlas, or the path in the ODG_ATLAS environment
+variable), as the headless tests; without it, they are downloaded.
 
 Each spreadsheet contains: Code | Value (test) | Name, one row per zone of the
 map. Codes and names are read from the map itself (draw:name and
@@ -13,6 +17,7 @@ Codes are written as text to keep leading zeros ("01").
 """
 import io
 import json
+import os
 import random
 import sys
 import urllib.request
@@ -23,7 +28,7 @@ from xml.sax.saxutils import escape
 
 CATALOG_URL = "https://raw.githubusercontent.com/gaborjager/odg-atlas/refs/heads/main/output/maps.json"
 FOLDER = Path(__file__).resolve().parent
-DEFAULT = ["regions", "departements", "cantons", "communes"]
+ATLAS = Path(os.environ.get("ODG_ATLAS") or FOLDER.parent.parent / "odg-atlas")
 
 NS_DRAW = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
 NS_SVG = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
@@ -32,6 +37,13 @@ NS_SVG = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
 def download(url):
     with urllib.request.urlopen(url, timeout=60) as r:
         return r.read()
+
+
+def read(url):
+    """File of the atlas: local copy if any (same path as on the main branch),
+    else downloaded."""
+    local = ATLAS / url.split("/main/", 1)[1]
+    return local.read_bytes() if local.exists() else download(url)
 
 
 def zones(odg):
@@ -96,8 +108,8 @@ def write_ods(path, sheet, rows):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force = "--force" in sys.argv
-    catalog = {c["id"]: c for c in json.loads(download(CATALOG_URL))["maps"]}
-    ids = args or DEFAULT
+    catalog = {c["id"]: c for c in json.loads(read(CATALOG_URL))["maps"]}
+    ids = args or list(catalog)
     for id_ in ids:
         if id_ not in catalog:
             print(f"{id_}: not in the catalog ({', '.join(catalog)})")
@@ -107,8 +119,8 @@ def main():
             print(f"{path.name} already exists (--force to rewrite it)")
             continue
         entry = catalog[id_]
-        print(f"{entry['filename']}: downloading…", flush=True)
-        codes = zones(io.BytesIO(download(entry["url"])))
+        print(f"{entry['filename']}: reading…", flush=True)
+        codes = zones(io.BytesIO(read(entry["url"])))
         rng = random.Random(id_)            # reproducible values per map
         rows = [(code, rng.randint(0, 1000), name) for code, name in sorted(codes.items())]
         write_ods(path, id_, rows)

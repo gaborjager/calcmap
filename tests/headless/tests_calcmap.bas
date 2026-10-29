@@ -713,3 +713,50 @@ ErrT:
 	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
+
+' ---------------------------------------------------------------- world maps
+' Continents and countries: each zone of the map gets a value in a new sheet
+' (codes read from the map), all must be colored, in Draw;
+' images world-continents.png, world-countries.png
+Sub TestWorldMaps()
+	Dim oCalc As Object, oSheet As Object, oRange As Object, oDoc As Object, oPage As Object, aOpt As Variant
+	Dim aPals As Variant, sId As Variant, i As Long, nZones As Long, n As Long, vT As Variant, oFilter As Object
+	Dim aProps(0) As New com.sun.star.beans.PropertyValue, aArgs(1) As New com.sun.star.beans.PropertyValue
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	aPals = LoadPalettes()
+	aProps(0).Name = "Hidden" : aProps(0).Value = True
+	For Each sId In Array("world-continents", "world-countries")
+		oDoc = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/" & sId & ".odg"), _
+			"_blank", 0, aProps())
+		oPage = oDoc.getDrawPages().getByIndex(0)
+		oCalc.getSheets().insertNewByName(sId, oCalc.getSheets().getCount())
+		oSheet = oCalc.getSheets().getByName(sId)
+		oSheet.getCellByPosition(0, 0).setString("Code")
+		oSheet.getCellByPosition(1, 0).setString("Value")
+		nZones = oPage.getCount()
+		For i = 0 To nZones - 1
+			oSheet.getCellByPosition(0, i + 1).setString(oPage.getByIndex(i).Name)
+			oSheet.getCellByPosition(1, i + 1).setValue((i * 37) Mod 100)
+		Next i
+		oRange = oSheet.getCellRangeByPosition(0, 0, 1, nZones)
+		aOpt = DefaultOptions()
+		aOpt(O_LEGEND) = True : aOpt(O_COL_LABEL) = 0
+		vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, oDoc)
+		n = ColorDocument(oDoc, oRange.getDataArray(), aPals(PaletteIndex(aPals, "viridis")), vT)
+		WriteLog("TEST " & sId & ": " & n & " zones colored out of " & nZones)
+		oFilter = CreateUnoService("com.sun.star.drawing.GraphicExportFilter")
+		oFilter.setSourceDocument(oPage)
+		aArgs(0).Name = "URL" : aArgs(0).Value = ConvertToURL(Environ("CALCMAP_TESTS") & "/" & sId & ".png")
+		aArgs(1).Name = "MediaType" : aArgs(1).Value = "image/png"
+		oFilter.filter(aArgs())
+		oDoc.close(True)
+	Next sId
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
