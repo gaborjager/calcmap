@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.20.2 - 2026-10-29
+
+- Labels and values of a zone made of several parts (a country with islands
+  or overseas territories, a continent) are placed on its largest part, no
+  longer in the middle of all its parts.
+- World maps of the ODG Atlas: continents and countries.
+
 ## 0.20.1 - 2026-10-23
 
 - The base maps now come from the ODG Atlas project (formerly france-odg),

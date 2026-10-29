@@ -485,6 +485,7 @@ tests/headless/run.sh TestTranslations     # each language loaded; dialog in de,
 tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
 tests/headless/run.sh TestEuMap            # European Union map colored from ISO codes
 tests/headless/run.sh TestWorldMaps        # world continents and countries: every zone colored
+tests/headless/run.sh TestMapLabels tests/test-world-continents.ods   # labels on the largest part
 tests/headless/run.sh TestMapReadability   # text outline settings: shapes, recoloring time
 tests/headless/run.sh TestColumnNames      # column names with examples
 tests/headless/run.sh TestSvgPreview       # SVG image in a dialog

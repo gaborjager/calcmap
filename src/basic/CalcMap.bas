@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.20.1"
+Const VERSION = "0.20.2"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -558,7 +558,7 @@ Sub ZoneText(oDoc As Object, oContainer As Object, oZone As Object, sLabel As St
 		sValue As String, dValueSize As Double, aOptions As Variant, nBackground As Long)
 	Dim aTexts(1) As String, aSizes(1) As Double, aFonts(1) As String, aStyles(1) As String
 	Dim aOutlines(1) As Boolean, bOutline As Boolean, aCopies(1) As String
-	Dim n As Integer, k As Integer, p As Variant, t As Variant, dCx As Double, dCy As Double
+	Dim n As Integer, k As Integer, dCx As Double, dCy As Double
 	Dim nColor As Long, dGap As Double, aDx As Variant, aDy As Variant, oText As Object
 	On Error GoTo Failed
 	If sLabel <> "" Then
@@ -577,10 +577,7 @@ Sub ZoneText(oDoc As Object, oContainer As Object, oZone As Object, sLabel As St
 	End If
 	If n = 0 Then Exit Sub
 	ReDim Preserve aTexts(n - 1) As String
-	p = oZone.Position
-	t = oZone.Size
-	dCx = p.X + t.Width / 2
-	dCy = p.Y + t.Height / 2
+	ZoneCenter(oZone, dCx, dCy)
 	nColor = ContrastTextColor(nBackground)
 	If bOutline Then
 		' Outline: 8 copies of the text, in the opposite color, offset all
@@ -604,6 +601,50 @@ Sub ZoneText(oDoc As Object, oContainer As Object, oZone As Object, sLabel As St
 	Exit Sub
 Failed:
 	WriteLog("  zone text " & oZone.Name & " not created (" & Error$ & ")")
+End Sub
+
+' Center of the zone texts: center of the largest part of the zone (a
+' country with islands or overseas territories, a continent), else of the
+' whole shape
+Sub ZoneCenter(oZone As Object, dCx As Double, dCy As Double)
+	Dim aPolys As Variant, aPts As Variant, i As Long, k As Long, n As Long
+	Dim dArea As Double, dBest As Double, x0 As Double, x1 As Double, y0 As Double, y1 As Double
+	Dim xA As Double, yA As Double, xB As Double, yB As Double
+	dCx = oZone.Position.X + oZone.Size.Width / 2
+	dCy = oZone.Position.Y + oZone.Size.Height / 2
+	On Error GoTo Done
+	Select Case oZone.getShapeType()
+		Case "com.sun.star.drawing.PolyPolygonShape" : aPolys = oZone.PolyPolygon
+		Case "com.sun.star.drawing.ClosedBezierShape" : aPolys = oZone.PolyPolygonBezier.Coordinates
+		Case Else : Exit Sub
+	End Select
+	If UBound(aPolys) < 1 Then Exit Sub
+	For i = 0 To UBound(aPolys)
+		aPts = aPolys(i)
+		n = UBound(aPts)
+		dArea = 0
+		For k = 0 To n
+			xA = aPts(k).X : yA = aPts(k).Y
+			xB = aPts((k + 1) Mod (n + 1)).X : yB = aPts((k + 1) Mod (n + 1)).Y
+			dArea = dArea + xA * yB - xB * yA
+		Next k
+		If Abs(dArea) > dBest Then
+			dBest = Abs(dArea)
+			x0 = aPts(0).X : x1 = x0 : y0 = aPts(0).Y : y1 = y0
+			For k = 1 To n
+				If aPts(k).X < x0 Then x0 = aPts(k).X
+				If aPts(k).X > x1 Then x1 = aPts(k).X
+				If aPts(k).Y < y0 Then y0 = aPts(k).Y
+				If aPts(k).Y > y1 Then y1 = aPts(k).Y
+			Next k
+		End If
+	Next i
+	' Points outside the frame of the shape (unexpected): center of the shape
+	If dBest = 0 Or x0 < oZone.Position.X - 1 Or y0 < oZone.Position.Y - 1 _
+		Or x1 > oZone.Position.X + oZone.Size.Width + 1 Or y1 > oZone.Position.Y + oZone.Size.Height + 1 Then Exit Sub
+	dCx = (x0 + x1) / 2
+	dCy = (y0 + y1) / 2
+Done:
 End Sub
 
 ' Text shape (one centered paragraph per text) centered on (dCx, dCy),

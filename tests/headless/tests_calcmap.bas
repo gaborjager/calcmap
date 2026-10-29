@@ -13,9 +13,9 @@ Function DocCalcT() As Object
 	Loop
 End Function
 
-' Inserts the departments map into the 1st sheet, like CalcMap();
-' returns the link name
-Function InsertMapT(aOpt As Variant, sPalette As String) As String
+' Inserts a map of the atlas (departments by default) into the 1st sheet,
+' like CalcMap(); returns the link name
+Function InsertMapT(aOpt As Variant, sPalette As String, Optional sMap As String) As String
 	Dim oCalc As Object, oDoc As Object, oSel As Object, oRange As Object, aPals As Variant, aPal As Variant
 	Dim oShp As Object, bImage As Boolean, sUrl As String, vT As Variant
 	Dim aProps(0) As New com.sun.star.beans.PropertyValue
@@ -25,7 +25,8 @@ Function InsertMapT(aOpt As Variant, sPalette As String) As String
 	oSel = SelectedRange(oCalc.getSheets().getByIndex(0).getCellRangeByName("A1:C1048576"))
 	oRange = DataRange(oSel)
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
-	sUrl = ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/departements-france.odg")
+	If IsMissing(sMap) Then sMap = "departements-france"
+	sUrl = ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/" & sMap & ".odg")
 	oDoc = StarDesktop.loadComponentFromURL(sUrl, "_blank", 0, aProps())
 	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, Nothing)
 	ColorDocument(oDoc, oRange.getDataArray(), aPal, vT)
@@ -754,6 +755,36 @@ Sub TestWorldMaps()
 		oFilter.filter(aArgs())
 		oDoc.close(True)
 	Next sId
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
+
+' ---------------------------------------------------------------- labels
+' Map named after the 1st sheet (spreadsheets made by generate_tests.py),
+' inserted with labels and values: zones with several parts get their texts
+' on the largest one. Image: map.png
+Sub TestMapLabels()
+	Dim oCalc As Object, oG As Object, o As Object, aOpt As Variant, i As Long, s As String
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_LEGEND) = True
+	InsertMapT(aOpt, "jaune-rouge-10", oCalc.getSheets().getByIndex(0).Name)
+	oG = oCalc.getSheets().getByIndex(0).getDrawPage().getByIndex(0)
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If o.Name = TEXT_PREFIX & " FR" Or o.Name = TEXT_PREFIX & " US" Or o.Name = TEXT_PREFIX & " AS" _
+			Or o.Name = TEXT_PREFIX & " OC" Or o.Name = TEXT_PREFIX & " NA" Then
+			If o.CharColor <> 0 Or InStr(s, o.Name) = 0 Then s = s & o.Name & " at " _
+				& (o.Position.X + o.Size.Width / 2) & "," & (o.Position.Y + o.Size.Height / 2) & " ; "
+		End If
+	Next i
+	WriteLog("TEST " & oCalc.getSheets().getByIndex(0).Name & ": " & oG.getCount() & " shapes ; " & s)
 	CloseLog()
 	Exit Sub
 ErrT:
