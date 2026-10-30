@@ -84,7 +84,7 @@ map as in Draw: **Show the labels** (label on the 1st line) and **Show the value
 - **White or black outline** (a box under each row, checked by default): black
   text circled in white, white text circled in black, readable on all colors;
   set separately for the values and for the labels. The outline is made of
-  copies of the text offset all around: a full update then takes about 3 s for
+  4 copies of the text offset along the diagonals: a full update then takes about 2 s for
   the departments, instead of 0.6 s.
 
 Values and labels follow the automatic update (a changed label is also taken

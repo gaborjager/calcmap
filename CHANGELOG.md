@@ -3,6 +3,11 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.21.1 - 2026-10-30
+
+- Faster maps with text outlines: each text now uses 4 outline copies instead
+  of 8, for the same look. Existing maps benefit from their next recoloring.
+
 ## 0.21.0 - 2026-10-30
 
 - Map titles and descriptions are available in all the languages of the

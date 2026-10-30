@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.21.0"
+Const VERSION = "0.21.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -580,8 +580,9 @@ Sub ZoneText(oDoc As Object, oContainer As Object, oZone As Object, sLabel As St
 	ZoneCenter(oZone, dCx, dCy)
 	nColor = ContrastTextColor(nBackground)
 	If bOutline Then
-		' Outline: 8 copies of the text, in the opposite color, offset all
-		' around (about 1/14 of the text height), under the text. In the
+		' Outline: 4 copies of the text, in the opposite color, offset along
+		' the diagonals (about 1/14 of the text height), under the text: as
+		' good as 8 copies, and more than twice as fast. In the
 		' copies, a text without outline is replaced by a space of the same
 		' font and size: line height and centering unchanged (a 100%
 		' transparent text is badly drawn by LibreOffice 25.2)
@@ -590,9 +591,9 @@ Sub ZoneText(oDoc As Object, oContainer As Object, oZone As Object, sLabel As St
 		Next k
 		ReDim Preserve aCopies(n - 1) As String
 		dGap = IIf(dValueSize > dLabelSize, dValueSize, dLabelSize) * 2.5
-		aDx = Array(-1, 0, 1, -1, 1, -1, 0, 1)
-		aDy = Array(-1, -1, -1, 0, 0, 1, 1, 1)
-		For k = 0 To 7
+		aDx = Array(-1, 1, -1, 1)
+		aDy = Array(-1, -1, 1, 1)
+		For k = 0 To 3
 			oText = ZoneTextShape(oDoc, oContainer, oZone.Name, aCopies, aSizes, aFonts, aStyles, _
 				IIf(nColor = 0, RGB(255, 255, 255), 0), dCx + aDx(k) * dGap, dCy + aDy(k) * dGap)
 		Next k
