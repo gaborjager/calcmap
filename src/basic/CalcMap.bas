@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.23.1"
+Const VERSION = "0.23.2"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -2788,12 +2788,12 @@ Failed:
 	WriteLog("ERROR comparing the codes with the maps: " & Error$)
 End Sub
 
-' Icon before the map codes: green tick if the codes of the chosen column match
-' the map, otherwise a discreet amber triangle. Without the list of the map
+' Icon before the map codes: green tick if the codes of the chosen column are
+' on the map, otherwise a discreet amber triangle. Without the list of the map
 ' codes, compares its examples; nothing without examples.
 Sub CheckCodes(aMap As Variant)
 	Dim oImage As Object, oColumn As Object, sFirst As String, i As Long, nColumn As Long
-	Dim aCodes As Variant, k As Integer, sMissing As String, sHelp As String
+	Dim aCodes As Variant, k As Integer, sMissing As String, sHelp As String, sIcon As String
 	On Error Resume Next
 	oImage = oDialog.getControl("imgCodes")
 	i = SelectedMap()
@@ -2803,8 +2803,11 @@ Sub CheckCodes(aMap As Variant)
 			Case FIT_PARTIAL : sHelp = Tr("dlg.codes_partial", aDialogFound(i), aDialogCodes(i), aMap(C_OBJECTS))
 			Case FIT_NONE : sHelp = Tr("dlg.codes_none", aDialogFound(i), aDialogCodes(i))
 		End Select
-		oImage.getModel().Graphic = GraphicOf(ExtensionFolder() & "icons/codes-" _
-			& IIf(aDialogFits(i) = FIT_OK, "ok", "attention") & ".svg")
+		' Tick as soon as the codes of the column are all on the map, even
+		' if the map has other zones (a few countries on a continent)
+		sIcon = IIf(aDialogFound(i) >= FIT_OK_MIN * aDialogCodes(i) And aDialogFound(i) > 0, "ok", "attention")
+		oImage.getModel().Graphic = GraphicOf(ExtensionFolder() & "icons/codes-" & sIcon & ".svg")
+		oImage.getModel().Tag = sIcon
 		oImage.getModel().HelpText = sHelp
 		oImage.setVisible(True)
 		Exit Sub

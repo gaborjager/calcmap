@@ -868,7 +868,7 @@ End Function
 
 Sub TestMapFit()
 	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, oRange As Object, n As Integer
-	Dim aMaps As Variant, b As Boolean, t As Long, sPref As Variant, oImg As Object
+	Dim aMaps As Variant, b As Boolean, t As Long, sPref As Variant, oImg As Object, i As Long
 	OpenLog()
 	On Error GoTo ErrT
 	LoadTexts()
@@ -888,7 +888,15 @@ Sub TestMapFit()
 		n = MapDialog(aMaps, aPals, "state", sPref, "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
 		WriteLog("TEST saved " & sPref & " (" & (GetSystemTicks() - t) & " ms, chosen " & iC & "): " & FitsT())
 		oImg = oDialog.getControl("imgCodes")
-		WriteLog("TEST icon: visible=" & oImg.isVisible() & " help=" & oImg.getModel().HelpText)
+		WriteLog("TEST icon: " & oImg.getModel().Tag & " help=" & oImg.getModel().HelpText)
+		For i = 0 To UBound(aMaps)
+			If aMaps(i)(C_ID) = "world-countries-robinson" Or aMaps(i)(C_ID) = "departements" Then
+				oDialog.getControl("lstMap").getModel().SelectedItems = Array(CInt(i))
+				CheckCodes(aMaps(i))
+				WriteLog("TEST icon of " & aMaps(i)(C_ID) & ": " & oImg.getModel().Tag & " help=" & oImg.getModel().HelpText)
+			End If
+		Next i
+		oDialog.getControl("lstMap").getModel().SelectedItems = Array(CInt(iC))
 		oDialog.getControl("lstCode").selectItemPos(2, True)
 		CodeList_itemStateChanged(Nothing)
 		WriteLog("TEST column C: " & FitsT() & " help=" & oImg.getModel().HelpText)

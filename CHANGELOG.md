@@ -3,6 +3,11 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.23.2 - 2026-10-30
+
+- Code check: the green tick appears as soon as all the codes of the column are
+  on the map, even if the map has other zones (a few countries on a continent).
+
 ## 0.23.1 - 2026-10-30
 
 - Map settings: the warning icon next to the map codes no longer appears

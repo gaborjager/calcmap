@@ -20,7 +20,9 @@ ISO country code…), and any other base map built the same way.
    codes match, **≈** partial match (e.g. a few countries on a world map),
    **✗** the codes do not match. No symbol: the codes of the map are not known
    (more than 300 zones, or a file of the cache). The symbols follow the code
-   column; a map you choose yourself stays selected.
+   column; a map you choose yourself stays selected. The icon of the Code frame
+   shows a tick as soon as the codes of the column are on the map, even if it
+   has other zones, and a triangle otherwise.
 4. Choose the color palette (a preview is shown below the list), and if needed
    customize the classes with **Classes…** (see below).
 5. Check the **code**, **values** and **labels** columns: each list offers the
