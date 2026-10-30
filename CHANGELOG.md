@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.22.0 - 2026-10-30
+
+- The dialog compares the code column with the maps: it selects the one that
+  fits best, and shows a symbol in the list of the maps: ✓ the codes match,
+  ≈ partial match, ✗ the codes do not match. Changing the column updates the
+  symbols; once you choose a map yourself, it is no longer changed.
+
 ## 0.21.1 - 2026-10-30
 
 - Faster maps with text outlines: each text now uses 4 outline copies instead

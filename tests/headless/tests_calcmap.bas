@@ -850,3 +850,65 @@ ErrT:
 	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
+
+' ---------------------------------------------------------------- map from the codes
+' Dialog on the 1st sheet, with the maps of the catalog: map selected from the
+' code column, symbols of the list, column changed, map chosen by the user.
+' The saved map is sPref. Run it on several spreadsheets.
+Function FitsT() As String
+	Dim oList As Object, i As Long, s As String, t As String
+	oList = oDialog.getControl("lstMap")
+	For i = 0 To oList.getItemCount() - 1
+		t = oList.getItem(i)
+		If Left(t, 1) = Chr(&H2713) Or Left(t, 1) = Chr(&H2248) Then s = s & Left(t, 1) & " " & aDialogMaps(i)(C_ID) & " ; "
+	Next i
+	i = SelectedMap()
+	FitsT = "selected=" & IIf(i >= 0, aDialogMaps(i)(C_ID), "none") & " | " & s
+End Function
+
+Sub TestMapFit()
+	Dim aOpt As Variant, aPals As Variant, iC As Integer, iP As Integer, bI As Boolean, oRange As Object, n As Integer
+	Dim aMaps As Variant, b As Boolean, t As Long, sPref As Variant, oImg As Object
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	sLanguage = "en"
+	LoadTexts()
+	SourcesT()
+	SettingT("MaxZones", 400)
+	aMaps = LoadCatalog(MapsFolder(), b)
+	aPals = LoadPalettes()
+	oRange = DataRange(SelectedRange(DocCalcT().getSheets().getByIndex(0).getCellRangeByName("A1:C1048576")))
+	aDialogData = oRange.getDataArray()
+	For Each sPref In Array("regions", "world-continents-miller")
+		aOpt = DefaultOptions()
+		bI = True
+		bKeepDialog = True
+		t = GetSystemTicks()
+		n = MapDialog(aMaps, aPals, "state", sPref, "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
+		WriteLog("TEST saved " & sPref & " (" & (GetSystemTicks() - t) & " ms, chosen " & iC & "): " & FitsT())
+		oImg = oDialog.getControl("imgCodes")
+		WriteLog("TEST icon: visible=" & oImg.isVisible() & " help=" & oImg.getModel().HelpText)
+		oDialog.getControl("lstCode").selectItemPos(2, True)
+		CodeList_itemStateChanged(Nothing)
+		WriteLog("TEST column C: " & FitsT() & " help=" & oImg.getModel().HelpText)
+		oDialog.getControl("lstCode").selectItemPos(0, True)
+		CodeList_itemStateChanged(Nothing)
+		WriteLog("TEST column A again: " & FitsT())
+		' The user chooses a map: it stays, even if another one fits better
+		oDialog.getControl("lstMap").getModel().SelectedItems = Array(CInt(0))
+		MapList_itemStateChanged(Nothing)
+		oDialog.getControl("lstCode").selectItemPos(1, True)
+		CodeList_itemStateChanged(Nothing)
+		oDialog.getControl("lstCode").selectItemPos(0, True)
+		CodeList_itemStateChanged(Nothing)
+		WriteLog("TEST chosen by the user: " & FitsT() & " help=" & oImg.getModel().HelpText)
+		bKeepDialog = False
+		oDialog.dispose()
+	Next sPref
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub

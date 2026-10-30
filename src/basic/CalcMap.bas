@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.21.1"
+Const VERSION = "0.22.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -130,6 +130,15 @@ Const C_PREVIEW = 9                  ' preview URL ("": none)
 Const C_PREVIEW_SHA = 10
 Const C_SOURCE = 11                     ' source in the aggregated catalog
 Const C_CODES = 12                  ' examples of zone codes, e.g. "01, 02, 03, 04" ("": unknown)
+Const C_ALL_CODES = 13              ' all the zone codes, separated by "|" ("": unknown)
+
+' Match between a map and the code column
+Const FIT_UNKNOWN = 0                   ' list of the map codes not available
+Const FIT_NONE = 1                      ' few codes of the column are on the map
+Const FIT_PARTIAL = 2                   ' most of them are on the map (another map may fit better)
+Const FIT_OK = 3                        ' same codes on both sides
+Const FIT_PARTIAL_MIN = 0.5             ' share of the column found on the map
+Const FIT_OK_MIN = 0.95                 ' share found on each side (a few blanks or totals tolerated)
 
 ' Options of a map (array returned by DefaultOptions). Same order in
 ' the link (from the 6th field on); names in the preferences: OPTION_NAMES.
@@ -176,6 +185,12 @@ Private sLogPath As String
 Private oDialog As Object               ' map choice dialog (for its listeners)
 Private bKeepDialog As Boolean          ' tests: dialog kept after execute(), to read it back
 Private aDialogMaps As Variant
+Private aDialogLabels As Variant        ' names of the maps, without the match symbol
+Private aDialogFits As Variant          ' match of each map (FIT_...)
+Private aDialogScores As Variant        ' match of each map as a number, to compare them
+Private aDialogFound As Variant         ' codes of the column found on each map
+Private aDialogCodes As Variant         ' codes of the column compared with each map
+Private bMapChosen As Boolean           ' map chosen by the user: not selected automatically any more
 Private aDialogPalettes As Variant
 Private aDialogData As Variant          ' data of the selection (classes editor)
 Private sDialogClasses As String  ' current custom classes ("": linear)
@@ -1831,7 +1846,7 @@ Function ReadCatalog(sUrl As String, sFolder As String, sSource As String, bDown
 				MapText(oTexts, oMapEntry, "description"), sMapUrl, sFile, JsonNumber(oMapEntry, "size"), _
 				LCase(JsonText(oMapEntry, "sha256")), oSFA.exists(sFolder & sFile), _
 				JsonNumber(oMapEntry, "objects"), sPreview, LCase(JsonText(oMapEntry, "preview_sha256")), sSource, _
-				CodeExamples(JsonField(oMapEntry, "code_examples")))
+				CodeExamples(JsonField(oMapEntry, "code_examples")), JsonText(oMapEntry, "codes"))
 			n = n + 1
 		Else
 			WriteLog("Catalog: entry " & (i + 1) & " skipped (invalid file or URL)")
@@ -1930,16 +1945,18 @@ Failed:
 End Function
 
 Function NewMap(sId, sTitle, sDescription, sUrl, sFile, nSize, sSha256, bLocale, _
-		Optional nObjects, Optional sPreview, Optional sPreviewSha, Optional sSource, Optional sCodes) As Variant
-	Dim v(4) As Variant
-	v(0) = 0 : v(1) = "" : v(2) = "" : v(3) = "" : v(4) = ""
+		Optional nObjects, Optional sPreview, Optional sPreviewSha, Optional sSource, Optional sCodes, _
+		Optional sAllCodes) As Variant
+	Dim v(5) As Variant
+	v(0) = 0 : v(1) = "" : v(2) = "" : v(3) = "" : v(4) = "" : v(5) = ""
 	If Not IsMissing(nObjects) Then v(0) = nObjects
 	If Not IsMissing(sPreview) Then v(1) = sPreview
 	If Not IsMissing(sPreviewSha) Then v(2) = sPreviewSha
 	If Not IsMissing(sSource) Then v(3) = sSource
 	If Not IsMissing(sCodes) Then v(4) = sCodes
+	If Not IsMissing(sAllCodes) Then v(5) = sAllCodes
 	NewMap = Array(sId, sTitle, sDescription, sUrl, sFile, nSize, sSha256, bLocale, _
-		v(0), v(1), v(2), v(3), v(4))
+		v(0), v(1), v(2), v(3), v(4), v(5))
 End Function
 
 ' Code examples from the catalog (JSON array of texts): "01, 02, 03"
@@ -2277,6 +2294,8 @@ Function MapDialog(aMaps As Variant, aPalettes As Variant, sState As String, _
 		End If
 	Next i
 	If iDefault < 0 Then iDefault = 0
+	If nLast >= 0 Then aDialogLabels = aLabels
+	bMapChosen = bConfig
 
 	ReDim aPalNames(UBound(aPalettes)) As String
 	For i = 0 To UBound(aPalettes)
@@ -2294,7 +2313,8 @@ Function MapDialog(aMaps As Variant, aPalettes As Variant, sState As String, _
 	' frames: one list or one row of buttons per line); then Legend
 	AddFrame(oModel, "grpMap", 4, 4, 452, 92, Tr("dlg.grp_map"))
 	AddControl(oModel, "ListBox", "lstMap", 12, 16, 346, 14, _
-		Array("Dropdown", "LineCount", "StringItemList", "Enabled"), Array(True, 12, aLabels, Not bConfig))
+		Array("Dropdown", "LineCount", "StringItemList", "Enabled", "HelpText"), _
+		Array(True, 12, aLabels, Not bConfig, Tr("dlg.fit_help")))
 	If bConfig Then
 		' Configuration: the base map does not change, its name is enough
 		AddControl(oModel, "FixedText", "lblMapTitle", 12, 18, 346, 12, _
@@ -2381,7 +2401,10 @@ Function MapDialog(aMaps As Variant, aPalettes As Variant, sState As String, _
 	' Without an explicitly created peer, execute() returns -1 without showing anything
 	' (seen with LibreOffice 25.2 on Wayland)
 	oDialog.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), oParent)
-	If nLast >= 0 Then ShowDescription(iDefault)
+	If nLast >= 0 Then
+		If Not bConfig Then ShowMapFits()
+		ShowDescription(SelectedMap())
+	End If
 	ShowPalette(iPalDefault)
 	ShowClassesState()
 	If bConfig Then
@@ -2625,38 +2648,166 @@ Sub ShowPalette(ByVal i As Long)
 End Sub
 
 ' Dialog listeners
-' Code column changed: check the map codes
+' Code column changed: match of the maps, then check of the chosen one
 Sub CodeList_itemStateChanged(oEvent As Object)
-	Dim i As Integer
+	Dim i As Integer, iBefore As Integer
 	On Error Resume Next
-	i = oDialog.getControl("lstMap").getSelectedItemPos()
+	iBefore = SelectedMap()
+	ShowMapFits()
+	i = SelectedMap()
 	If i < 0 Then i = 0
-	If i <= UBound(aDialogMaps) Then CheckCodes(aDialogMaps(i))
+	If i <> iBefore Then
+		ShowDescription(i)
+	ElseIf i <= UBound(aDialogMaps) Then
+		CheckCodes(aDialogMaps(i))
+	End If
 End Sub
 
 Sub CodeList_disposing(oEvent As Object)
 End Sub
 
-' Icon before the map codes: green tick if all the example codes
-' are in the chosen code column (lost leading zeros
-' tolerated), otherwise a discreet amber triangle; nothing without examples
+' Different codes of the chosen code column (nColumn of them); sFirst: the 1st
+' one (maybe a header)
+Function ColumnCodes(sFirst As String, nColumn As Long) As Object
+	Dim oColumn As Object, iCol As Integer, r As Long, sCode As String
+	oColumn = com.sun.star.container.EnumerableMap.create("string", "boolean")
+	sFirst = ""
+	nColumn = 0
+	iCol = oDialog.getControl("lstCode").getSelectedItemPos()
+	For r = 0 To UBound(aDialogData)
+		If UBound(aDialogData(r)) >= iCol Then
+			sCode = NormalizeCode(aDialogData(r)(iCol))
+			If sCode <> "" Then
+				If Not oColumn.containsKey(sCode) Then nColumn = nColumn + 1
+				oColumn.put(sCode, True)
+				If sFirst = "" Then sFirst = sCode
+			End If
+		End If
+	Next r
+	ColumnCodes = oColumn
+End Function
+
+' Match between a map and the code column (FIT_...). dScore: compares the maps,
+' 1 if both have the same codes (lost leading zeros tolerated); nFound: codes
+' of the column found on the map, out of n. The 1st code does not count if it
+' is not on the map: it is probably a header.
+Function MapFit(aMap As Variant, oColumn As Object, sFirst As String, nColumn As Long, _
+		dScore As Double, nFound As Long, n As Long) As Integer
+	Dim aCodes As Variant, k As Long, sKey As String, bFirst As Boolean, nMap As Long
+	MapFit = FIT_UNKNOWN
+	dScore = 0
+	nFound = 0
+	n = nColumn
+	If aMap(C_ALL_CODES) = "" Then Exit Function
+	aCodes = Split(aMap(C_ALL_CODES), "|")
+	nMap = UBound(aCodes) + 1
+	For k = 0 To nMap - 1
+		sKey = FoundKey(oColumn, aCodes(k))
+		If sKey <> "" Then
+			nFound = nFound + 1
+			If sKey = sFirst Then bFirst = True
+		End If
+	Next k
+	n = nColumn - IIf(bFirst Or nColumn = 0, 0, 1)
+	MapFit = FIT_NONE
+	If n = 0 Or nFound = 0 Then Exit Function
+	dScore = 2 * nFound / (n + nMap)
+	If nFound >= FIT_OK_MIN * n And nFound >= FIT_OK_MIN * nMap Then
+		MapFit = FIT_OK
+	ElseIf nFound >= FIT_PARTIAL_MIN * n Then
+		MapFit = FIT_PARTIAL
+	End If
+End Function
+
+' Symbol of the match, before the name of a map in the list
+Function FitSymbol(iFit As Integer) As String
+	Select Case iFit
+		Case FIT_OK : FitSymbol = Chr(&H2713) & "  "        ' check mark
+		Case FIT_PARTIAL : FitSymbol = Chr(&H2248) & "  "   ' almost equal to
+		Case FIT_NONE : FitSymbol = Chr(&H2717) & "  "      ' ballot x
+		Case Else : FitSymbol = ""
+	End Select
+End Function
+
+' Position of the map selected in the list (-1: none)
+Function SelectedMap() As Integer
+	Dim aItems As Variant
+	aItems = oDialog.getControl("lstMap").getModel().SelectedItems
+	SelectedMap = -1
+	If UBound(aItems) >= 0 Then SelectedMap = aItems(0)
+End Function
+
+' Compares the code column with the maps: a symbol in the list of the maps and,
+' until the user chooses a map, selection of the best one if it fits better
+' than the current one (which stays selected when they fit equally)
+Sub ShowMapFits()
+	Dim oColumn As Object, sFirst As String, oModel As Object, i As Long
+	Dim iBest As Long, iCurrent As Long, nLast As Long, dScore As Double, nFound As Long, nColumn As Long, n As Long
+	On Error GoTo Failed
+	If Not IsArray(aDialogData) Then Exit Sub
+	nLast = UBound(aDialogMaps)
+	ReDim aDialogFits(nLast)
+	ReDim aDialogScores(nLast)
+	ReDim aDialogFound(nLast)
+	ReDim aDialogCodes(nLast)
+	oColumn = ColumnCodes(sFirst, nColumn)
+	oModel = oDialog.getControl("lstMap").getModel()
+	iCurrent = SelectedMap()
+	iBest = -1
+	For i = 0 To nLast
+		aDialogFits(i) = MapFit(aDialogMaps(i), oColumn, sFirst, nColumn, dScore, nFound, n)
+		aDialogScores(i) = dScore
+		aDialogFound(i) = nFound
+		aDialogCodes(i) = n
+		oModel.setItemText(i, FitSymbol(aDialogFits(i)) & aDialogLabels(i))
+		If aDialogFits(i) >= FIT_PARTIAL Then
+			If iBest < 0 Then
+				iBest = i
+			ElseIf aDialogScores(i) > aDialogScores(iBest) Then
+				iBest = i
+			End If
+		End If
+	Next i
+	If iCurrent >= 0 And iBest >= 0 And Not bMapChosen Then
+		If aDialogScores(iBest) > aDialogScores(iCurrent) Then
+			iCurrent = iBest
+			WriteLog("Map selected from the codes: " & aDialogMaps(iBest)(C_TITLE))
+		End If
+	End If
+	' Through the model: no event, the user has not chosen this map. Needed
+	' in any case: changing the text of the items clears the selection.
+	If iCurrent >= 0 Then oModel.SelectedItems = Array(CInt(iCurrent))
+	Exit Sub
+Failed:
+	WriteLog("ERROR comparing the codes with the maps: " & Error$)
+End Sub
+
+' Icon before the map codes: green tick if the codes of the chosen column match
+' the map, otherwise a discreet amber triangle. Without the list of the map
+' codes, compares its examples; nothing without examples.
 Sub CheckCodes(aMap As Variant)
-	Dim oImage As Object, oColumn As Object, iCol As Integer, r As Long, sCode As String
-	Dim aCodes As Variant, k As Integer, sMissing As String
+	Dim oImage As Object, oColumn As Object, sFirst As String, i As Long, nColumn As Long
+	Dim aCodes As Variant, k As Integer, sMissing As String, sHelp As String
 	On Error Resume Next
 	oImage = oDialog.getControl("imgCodes")
+	i = SelectedMap()
+	If IsArray(aDialogFits) And aMap(C_ALL_CODES) <> "" And i >= 0 And i <= UBound(aDialogFits) And IsArray(aDialogData) Then
+		Select Case aDialogFits(i)
+			Case FIT_OK : sHelp = Tr("dlg.codes_ok")
+			Case FIT_PARTIAL : sHelp = Tr("dlg.codes_partial", aDialogFound(i), aDialogCodes(i), aMap(C_OBJECTS))
+			Case FIT_NONE : sHelp = Tr("dlg.codes_none", aDialogFound(i), aDialogCodes(i))
+		End Select
+		oImage.getModel().Graphic = GraphicOf(ExtensionFolder() & "icons/codes-" _
+			& IIf(aDialogFits(i) = FIT_OK, "ok", "attention") & ".svg")
+		oImage.getModel().HelpText = sHelp
+		oImage.setVisible(True)
+		Exit Sub
+	End If
 	If aMap(C_CODES) = "" Or Not IsArray(aDialogData) Then
 		oImage.setVisible(False)
 		Exit Sub
 	End If
-	iCol = oDialog.getControl("lstCode").getSelectedItemPos()
-	oColumn = com.sun.star.container.EnumerableMap.create("string", "boolean")
-	For r = 0 To UBound(aDialogData)
-		If UBound(aDialogData(r)) >= iCol Then
-			sCode = NormalizeCode(aDialogData(r)(iCol))
-			If sCode <> "" Then oColumn.put(sCode, True)
-		End If
-	Next r
+	oColumn = ColumnCodes(sFirst, nColumn)
 	aCodes = Split(aMap(C_CODES), ", ")
 	For k = 0 To UBound(aCodes)
 		If FoundKey(oColumn, aCodes(k)) = "" Then sMissing = sMissing & IIf(sMissing = "", "", ", ") & aCodes(k)
@@ -2672,6 +2823,7 @@ Sub CheckCodes(aMap As Variant)
 End Sub
 
 Sub MapList_itemStateChanged(oEvent As Object)
+	bMapChosen = True
 	On Error Resume Next
 	ShowDescription(oEvent.Selected)
 End Sub

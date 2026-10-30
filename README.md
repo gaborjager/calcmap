@@ -13,9 +13,14 @@ ISO country code…), and any other base map built the same way.
    are selected, the next one is offered as the label. Whole columns can be
    selected.
 2. Click the **globe** icon on the toolbar (or **Tools → CalcMap: color a map…**).
-3. Choose the base map in the drop-down list (French regions and departments,
-   countries of the European Union…), or another
-   `.odg` file with **Other file…**.
+3. Check the base map in the drop-down list (French regions and departments,
+   countries of the world and of each continent…), or take another `.odg` file
+   with **Other file…**. CalcMap compares your code column with the maps,
+   selects the one that fits best and shows a symbol before each map: **✓** the
+   codes match, **≈** partial match (e.g. a few countries on a world map),
+   **✗** the codes do not match. No symbol: the codes of the map are not known
+   (more than 300 zones, or a file of the cache). The symbols follow the code
+   column; a map you choose yourself stays selected.
 4. Choose the color palette (a preview is shown below the list), and if needed
    customize the classes with **Classes…** (see below).
 5. Check the **code**, **values** and **labels** columns: each list offers the
@@ -29,9 +34,8 @@ ISO country code…), and any other base map built the same way.
 8. Check **Show the legend**, **with the values** (bounds of each class) or without.
 
 > Only maps with at most **300 zones** are offered (`MaxZones` setting, see
-> *Settings*): with the current catalog, the French regions and departments
-> and the countries of the European Union. Cantons (2,306 zones) and
-> municipalities (35,191) are left out.
+> *Settings*): with the current catalog, all of them except the French cantons
+> (2,306 zones) and municipalities (35,191).
 
 The dialog is organized in frames: at the top **Map** (base map, its preview,
 insertion in the sheet); below, side by side like the columns to choose,
@@ -277,8 +281,9 @@ format (`maps.json`); for now only one, the ODG Atlas (formerly france-odg).
   for a network share.
 - Fields used for a map: `id`, `title`, `description`, `url`, `filename`,
   `size`, `sha256`, and if they exist `objects` (number of zones, for the
-  filter), `preview` / `preview_sha256` (SVG, PNG or JPEG preview) and
-  `code_examples` (examples of zone codes, shown in the Code frame).
+  filter), `preview` / `preview_sha256` (SVG, PNG or JPEG preview),
+  `code_examples` (examples of zone codes, shown in the Code frame) and `codes`
+  (all the zone codes separated by `|`, to compare them with the code column).
 - Texts of the maps in the interface language: a catalog can announce one file
   per language, with `translations` (URL containing `{lang}`) and `languages`
   (available languages). Each file contains `{"<id>": {"title": "…",
@@ -484,6 +489,7 @@ tests/headless/run.sh TestFullEditor       # classes editor (mouse, arrows, typi
 tests/headless/run.sh TestPartial          # zone-by-zone update vs full recalculation
 tests/headless/run.sh TestDialog           # main dialog: settings read back unchanged
 tests/headless/run.sh TestCodesIcon        # code check icon, dialog geometry
+tests/headless/run.sh TestMapFit tests/test-regions.ods   # map selected from the codes, symbols of the list
 tests/headless/run.sh TestCatalog          # aggregated catalog, filter, previews (local files)
 tests/headless/run.sh TestCatalogLanguages # map texts per language, English by default, cache
 tests/headless/run.sh TestIconOnMap        # icon on a selected map: configuration
