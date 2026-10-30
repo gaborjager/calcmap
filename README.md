@@ -279,6 +279,12 @@ format (`maps.json`); for now only one, the ODG Atlas (formerly france-odg).
   `size`, `sha256`, and if they exist `objects` (number of zones, for the
   filter), `preview` / `preview_sha256` (SVG, PNG or JPEG preview) and
   `code_examples` (examples of zone codes, shown in the Code frame).
+- Texts of the maps in the interface language: a catalog can announce one file
+  per language, with `translations` (URL containing `{lang}`) and `languages`
+  (available languages). Each file contains `{"<id>": {"title": "…",
+  "description": "…"}}`; it is downloaded with the catalog and cached. Without
+  one, `title_<lang>` and `description_<lang>` of the catalog are used, then
+  `title` and `description` (English).
 
 ### Settings
 
@@ -479,6 +485,7 @@ tests/headless/run.sh TestPartial          # zone-by-zone update vs full recalcu
 tests/headless/run.sh TestDialog           # main dialog: settings read back unchanged
 tests/headless/run.sh TestCodesIcon        # code check icon, dialog geometry
 tests/headless/run.sh TestCatalog          # aggregated catalog, filter, previews (local files)
+tests/headless/run.sh TestCatalogLanguages # map texts per language, English by default, cache
 tests/headless/run.sh TestIconOnMap        # icon on a selected map: configuration
 tests/headless/run.sh TestSettings         # settings: default values, change
 tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja

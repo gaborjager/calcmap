@@ -425,22 +425,29 @@ Function ListT(aMaps As Variant) As String
 	ListT = (UBound(aMaps) + 1) & " map(s): " & s
 End Function
 
+' Aggregated catalog in the test folder: the ODG Atlas source (the project's
+' catalog, maps and previews as local files) and a company source
+Sub SourcesT()
+	Dim sTests As String, sFixtures As String, sAtlas As String
+	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
+	sFixtures = ConvertToURL(Environ("CALCMAP_FIXTURES"))
+	sAtlas = ConvertToURL(Environ("CALCMAP_ATLAS"))
+	WriteText(sTests & "/source-atlas.json", _
+		Replace(ReadText(sAtlas & "/output/maps.json"), "https://raw.githubusercontent.com/gaborjager/odg-atlas/main", sAtlas))
+	WriteText(sTests & "/source-company.json", Replace(Replace(ReadText(sFixtures & "/source-company.json"), _
+		"@TESTS@", sTests), "@ATLAS@", sAtlas & "/output"))
+	WriteText(sTests & "/aggregate.json", Replace(ReadText(sFixtures & "/aggregate.json"), "@TESTS@", sTests))
+	SettingT("Catalog", sTests & "/aggregate.json")
+End Sub
+
 Sub TestCatalog()
-	Dim sTests As String, sFixtures As String, sAtlas As String, s As String, aMaps As Variant, b As Boolean, i As Long
+	Dim sTests As String, s As String, aMaps As Variant, b As Boolean, i As Long
 	OpenLog()
 	On Error GoTo ErrT
 	LoadTexts()
 	WriteLog("TEST default settings: catalog=" & CatalogUrl() & " ; max zones=" & MaxZones())
 	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
-	sFixtures = ConvertToURL(Environ("CALCMAP_FIXTURES"))
-	sAtlas = ConvertToURL(Environ("CALCMAP_ATLAS"))
-	' ODG Atlas source: the project's catalog, maps and previews as local files
-	s = Replace(ReadText(sAtlas & "/output/maps.json"), "https://raw.githubusercontent.com/gaborjager/odg-atlas/main", sAtlas)
-	WriteText(sTests & "/source-atlas.json", s)
-	WriteText(sTests & "/source-company.json", Replace(Replace(ReadText(sFixtures & "/source-company.json"), _
-		"@TESTS@", sTests), "@ATLAS@", sAtlas & "/output"))
-	WriteText(sTests & "/aggregate.json", Replace(ReadText(sFixtures & "/aggregate.json"), "@TESTS@", sTests))
-	SettingT("Catalog", sTests & "/aggregate.json")
+	SourcesT()
 	SettingT("MaxZones", 200)
 	aMaps = LoadCatalog(MapsFolder(), b)
 	WriteLog("TEST max 200: online=" & b & " ; " & ListT(aMaps))
@@ -458,6 +465,55 @@ Sub TestCatalog()
 	SettingT("Catalog", sTests & "/absent.json")
 	aMaps = LoadCatalog(MapsFolder(), b)
 	WriteLog("TEST catalog unreachable: online=" & b & " ; " & ListT(aMaps))
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
+
+' Texts of the maps in the interface language: output/i18n/maps.<lang>.json,
+' else English; a source without translations keeps its own texts
+Function MapTextsT(aMaps As Variant) As String
+	Dim i As Long, s As String
+	For i = 0 To UBound(aMaps)
+		If aMaps(i)(C_ID) = "regions" Or aMaps(i)(C_ID) = "world-continents-miller" Or aMaps(i)(C_ID) = "secteurs" Then
+			s = s & aMaps(i)(C_ID) & "=" & aMaps(i)(C_TITLE) & " / " & Right(aMaps(i)(C_DESCRIPTION), 24) & " ; "
+		End If
+	Next i
+	MapTextsT = s
+End Function
+
+Sub TestCatalogLanguages()
+	Dim sCode As Variant, sTests As String, aMaps As Variant, b As Boolean
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	sTests = ConvertToURL(Environ("CALCMAP_TESTS"))
+	SourcesT()
+	For Each sCode In Array("de", "fr", "ja", "ar", "en", "xx")
+		sLanguage = sCode
+		aMaps = LoadCatalog(MapsFolder(), b)
+		WriteLog("TEST " & sCode & ": " & MapTextsT(aMaps))
+	Next sCode
+	' Without a network: sources and texts read from the cache
+	sLanguage = "de"
+	aMaps = ReadSources(MapsFolder() & CATALOG_NAME, MapsFolder(), False, b)
+	WriteLog("TEST de, cache only: " & MapTextsT(aMaps))
+	' Catalog of maps set directly (no aggregated catalog)
+	sLanguage = "es"
+	SettingT("Catalog", sTests & "/source-atlas.json")
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST es, direct catalog: " & MapTextsT(aMaps))
+	' File of the language missing: English, or the cached copy if there is one
+	WriteText(sTests & "/source-atlas.json", Replace(ReadText(sTests & "/source-atlas.json"), "/output/i18n/", "/absent/"))
+	SettingT("Catalog", sTests & "/aggregate.json")
+	sLanguage = "ko"
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST ko, file missing: " & MapTextsT(aMaps))
+	sLanguage = "de"
+	aMaps = LoadCatalog(MapsFolder(), b)
+	WriteLog("TEST de, file missing, cached copy: " & MapTextsT(aMaps))
 	CloseLog()
 	Exit Sub
 ErrT:

@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.21.0 - 2026-10-30
+
+- Map titles and descriptions are available in all the languages of the
+  interface. They come from a file per language published with the catalog,
+  downloaded with it and kept for offline use; English is used when a
+  language or a map has no translation.
+
 ## 0.20.2 - 2026-10-29
 
 - Labels and values of a zone made of several parts (a country with islands

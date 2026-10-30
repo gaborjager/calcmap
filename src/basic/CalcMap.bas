@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.20.2"
+Const VERSION = "0.21.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -1714,7 +1714,7 @@ Function ReadSources(sUrl As String, sFolder As String, bDownload As Boolean, bO
 	ReadSources = Array()
 	oRoot = JsonRead(ReadText(sUrl))
 	If IsArray(JsonField(oRoot, "maps")) Then
-		ReadSources = ReadCatalog(sUrl, sFolder, "")
+		ReadSources = ReadCatalog(sUrl, sFolder, "", bDownload)
 		bOnline = bDownload And (UBound(ReadSources) >= 0)
 		Exit Function
 	End If
@@ -1730,7 +1730,7 @@ Function ReadSources(sUrl As String, sFolder As String, bDownload As Boolean, bO
 			aMaps = Array()
 			If bDownload Then
 				If DownloadFile(sSourceUrl, sLocal & ".part", sHash, Nothing, 0) Then
-					aMaps = ReadCatalog(sLocal & ".part", sFolder, sId)
+					aMaps = ReadCatalog(sLocal & ".part", sFolder, sId, True)
 					If UBound(aMaps) >= 0 Then
 						ReplaceFile(sLocal & ".part", sLocal)
 						bOnline = True
@@ -1739,7 +1739,7 @@ Function ReadSources(sUrl As String, sFolder As String, bDownload As Boolean, bO
 					End If
 				End If
 			End If
-			If UBound(aMaps) < 0 Then aMaps = ReadCatalog(sLocal, sFolder, sId)
+			If UBound(aMaps) < 0 Then aMaps = ReadCatalog(sLocal, sFolder, sId, False)
 			WriteLog("Source " & sId & ": " & (UBound(aMaps) + 1) & " map(s)")
 			For k = 0 To UBound(aMaps)
 				If oIds.containsKey(aMaps(k)(C_ID)) Then
@@ -1806,9 +1806,10 @@ Function SafeId(s As String) As Boolean
 	SafeId = True
 End Function
 
-' Reads a local maps.json; skips incomplete or suspicious entries
-Function ReadCatalog(sUrl As String, sFolder As String, sSource As String) As Variant
-	Dim oSFA As Object, oRoot As Variant, aList As Variant, oMapEntry As Variant
+' Reads a local maps.json; skips incomplete or suspicious entries.
+' Texts in the interface language: see CatalogTexts
+Function ReadCatalog(sUrl As String, sFolder As String, sSource As String, bDownload As Boolean) As Variant
+	Dim oSFA As Object, oRoot As Variant, aList As Variant, oMapEntry As Variant, oTexts As Variant
 	Dim aRes() As Variant, n As Long, i As Long, sFile As String, sMapUrl As String, sPreview As String
 	On Error GoTo Failed
 	ReadCatalog = Array()
@@ -1816,6 +1817,7 @@ Function ReadCatalog(sUrl As String, sFolder As String, sSource As String) As Va
 	If Not oSFA.exists(sUrl) Then Exit Function
 	oRoot = JsonRead(ReadText(sUrl))
 	aList = JsonElements(JsonField(oRoot, "maps"))
+	oTexts = CatalogTexts(oRoot, sFolder, sSource, bDownload)
 	For i = 0 To UBound(aList)
 		oMapEntry = aList(i)
 		sFile = JsonText(oMapEntry, "filename")
@@ -1824,8 +1826,8 @@ Function ReadCatalog(sUrl As String, sFolder As String, sSource As String) As Va
 		If Not IsAllowedUrl(sPreview) Then sPreview = ""
 		If SafeFileName(sFile) And IsAllowedUrl(sMapUrl) Then
 			ReDim Preserve aRes(n)
-			aRes(n) = NewMap(JsonText(oMapEntry, "id"), JsonTranslatedText(oMapEntry, "title"), _
-				JsonTranslatedText(oMapEntry, "description"), sMapUrl, sFile, JsonNumber(oMapEntry, "size"), _
+			aRes(n) = NewMap(JsonText(oMapEntry, "id"), MapText(oTexts, oMapEntry, "title"), _
+				MapText(oTexts, oMapEntry, "description"), sMapUrl, sFile, JsonNumber(oMapEntry, "size"), _
 				LCase(JsonText(oMapEntry, "sha256")), oSFA.exists(sFolder & sFile), _
 				JsonNumber(oMapEntry, "objects"), sPreview, LCase(JsonText(oMapEntry, "preview_sha256")), sSource, _
 				CodeExamples(JsonField(oMapEntry, "code_examples")))
@@ -1839,6 +1841,52 @@ Function ReadCatalog(sUrl As String, sFolder As String, sSource As String) As Va
 Failed:
 	WriteLog("ERROR reading the catalog: " & Error$)
 	ReadCatalog = Array()
+End Function
+
+' Texts of the maps in the interface language ({id: {title, description}}),
+' from the file announced by the catalog ("translations": URL with {lang},
+' "languages": list of the available ones). Downloaded if bDownload, cached
+' copy otherwise; Empty if there is none: the catalog's own texts are used
+Function CatalogTexts(oRoot As Variant, sFolder As String, sSource As String, bDownload As Boolean) As Variant
+	Dim oSFA As Object, aLangs As Variant, sLang As String, sUrl As String, sLocal As String, sHash As String
+	Dim i As Long, bFound As Boolean
+	On Error GoTo Failed
+	CatalogTexts = Empty
+	sLang = UiLanguage()
+	sUrl = JsonText(oRoot, "translations")
+	aLangs = JsonElements(JsonField(oRoot, "languages"))
+	For i = 0 To UBound(aLangs)
+		If aLangs(i) = sLang Then bFound = True
+	Next i
+	If Not bFound Or Not SafeId(sLang) Then Exit Function
+	sUrl = Replace(sUrl, "{lang}", sLang)
+	If Not IsAllowedUrl(sUrl) Then Exit Function
+	sLocal = sFolder & "texts-" & IIf(sSource = "", "catalog", sSource) & "-" & sLang & ".json"
+	If bDownload Then
+		If DownloadFile(sUrl, sLocal & ".part", sHash, Nothing, 0) Then
+			If IsArray(JsonRead(ReadText(sLocal & ".part"))) Then
+				ReplaceFile(sLocal & ".part", sLocal)
+			Else
+				WriteLog("Unreadable map texts: " & sUrl)
+				DeleteFile(sLocal & ".part")
+			End If
+		End If
+	End If
+	oSFA = CreateUnoService("com.sun.star.ucb.SimpleFileAccess")
+	If oSFA.exists(sLocal) Then CatalogTexts = JsonRead(ReadText(sLocal))
+	Exit Function
+Failed:
+	WriteLog("ERROR reading the map texts: " & Error$)
+	CatalogTexts = Empty
+End Function
+
+' Text of a map: file of the language, else the catalog (title_<lang>,
+' then the default text in English)
+Function MapText(oTexts As Variant, oMapEntry As Variant, sKey As String) As String
+	Dim s As String
+	s = JsonText(JsonField(oTexts, JsonText(oMapEntry, "id")), sKey)
+	If s = "" Then s = JsonTranslatedText(oMapEntry, sKey)
+	MapText = s
 End Function
 
 ' Catalog maps present in the cache, plus the other .odg files of the cache
