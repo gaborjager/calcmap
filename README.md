@@ -127,6 +127,11 @@ A map inserted in the sheet stays **linked to its data**: as soon as a value
 changes (typed, pasted, formula result recalculated), the map is updated, with
 the same settings.
 
+- **Filters**: only the visible rows count. With an AutoFilter, or rows hidden
+  by hand, the other zones get the "No data" color, without value or label, and
+  the classes and the legend are computed on the visible values. The map
+  follows as soon as the filter changes, and is complete again without it. The
+  choice of the base map is not affected by the filter.
 - Usually, **only the changed zones** are redone (color, alternative text,
   value and label shown): about 0.3 s for one department, outline included.
 - **The whole map** is redone when the change affects the whole map: new
@@ -365,6 +370,7 @@ default color (grey) and is noted in the log.
 | Case | Handling |
 |---|---|
 | Empty row, empty code | skipped |
+| Row hidden by a filter or by hand | skipped |
 | Header (even repeated in the middle) | skipped (non-numeric value) |
 | Empty value, text (`n.d.`), cell in error (`#DIV/0!`) | default color |
 | Number typed as text (`1 234,5`) | accepted |
@@ -489,6 +495,7 @@ tests/headless/run.sh TestFullEditor       # classes editor (mouse, arrows, typi
 tests/headless/run.sh TestPartial          # zone-by-zone update vs full recalculation
 tests/headless/run.sh TestDialog           # main dialog: settings read back unchanged
 tests/headless/run.sh TestCodesIcon        # code check icon, dialog geometry
+tests/headless/run.sh TestFilter           # filter and hidden rows: only the visible rows on the map
 tests/headless/run.sh TestMapFit tests/test-regions.ods   # map selected from the codes, symbols of the list
 tests/headless/run.sh TestCatalog          # aggregated catalog, filter, previews (local files)
 tests/headless/run.sh TestCatalogLanguages # map texts per language, English by default, cache

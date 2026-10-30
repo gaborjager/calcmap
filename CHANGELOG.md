@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.23.0 - 2026-10-30
+
+- Filters are taken into account: the map shows only the visible rows. Zones
+  of hidden rows get the "No data" color, and the classes and the legend are
+  computed on the visible values. The map follows as soon as the filter
+  changes, and also when rows are hidden by hand.
+
 ## 0.22.0 - 2026-10-30
 
 - The dialog compares the code column with the maps: it selects the one that

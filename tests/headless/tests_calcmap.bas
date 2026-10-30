@@ -912,3 +912,81 @@ ErrT:
 	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
+
+' ---------------------------------------------------------------- filter
+' Map linked to data with a filter: only the visible rows count (zones, classes,
+' texts), and changing the filter updates the map, as hiding a row by hand.
+' Image: map.png, with the last filter
+Function FilterStateT(oG As Object, nEmpty As Long) As String
+	Dim i As Long, o As Object, nZones As Long, nNoData As Long, nTexts As Long, sLegend As String
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If Left(o.Name, Len(TEXT_PREFIX)) = TEXT_PREFIX Then
+			nTexts = nTexts + 1
+		ElseIf Not IsLegend(o.Name) Then
+			nZones = nZones + 1
+			If o.FillColor = nEmpty Then nNoData = nNoData + 1
+		ElseIf Len(o.getString()) > 0 Then
+			sLegend = sLegend & o.getString() & " / "
+		End If
+	Next i
+	FilterStateT = nZones & " zones, " & (nZones - nNoData) & " colored, " & nTexts & " texts ; legend " & Left(sLegend, 90)
+End Function
+
+Sub FilterT(oRange As Object, dMin As Double)
+	Dim oDesc As Object
+	Dim aF(0) As New com.sun.star.sheet.TableFilterField
+	oDesc = oRange.createFilterDescriptor(True)
+	oDesc.ContainsHeader = True
+	aF(0).Field = 1 : aF(0).IsNumeric = True
+	aF(0).Operator = com.sun.star.sheet.FilterOperator.GREATER : aF(0).NumericValue = dMin
+	oDesc.setFilterFields(aF())
+	oRange.filter(oDesc)
+	Wait 500
+End Sub
+
+Sub TestFilter()
+	Dim oCalc As Object, oSheet As Object, oRange As Object, oG As Object, aOpt As Variant, nEmpty As Long, aPals As Variant, t As Long
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	oSheet = oCalc.getSheets().getByIndex(0)
+	oRange = oSheet.getCellRangeByName("A1:C97")
+	aPals = LoadPalettes()
+	nEmpty = aPals(PaletteIndex(aPals, "jaune-rouge-10"))(P_EMPTY)
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LEGEND) = True
+	InsertMapT(aOpt, "jaune-rouge-10")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	WriteLog("TEST no filter: " & FilterStateT(oG, nEmpty))
+	FilterT(oRange, 500)
+	WriteLog("TEST filter > 500: " & FilterStateT(oG, nEmpty))
+	FilterT(oRange, 900)
+	WriteLog("TEST filter > 900: " & FilterStateT(oG, nEmpty))
+	oSheet.getCellByPosition(1, 70).setValue(999)
+	Wait 300
+	WriteLog("TEST value of a visible row changed: " & FilterStateT(oG, nEmpty))
+	oSheet.getCellByPosition(1, 3).setValue(1500)
+	Wait 300
+	WriteLog("TEST value of a hidden row changed: " & FilterStateT(oG, nEmpty))
+	FilterT(oRange, 2000)
+	WriteLog("TEST filter hiding everything: " & FilterStateT(oG, nEmpty))
+	FilterT(oRange, -1)
+	WriteLog("TEST filter removed: " & FilterStateT(oG, nEmpty))
+	oSheet.getRows().getByIndex(5).IsVisible = False
+	Wait 300
+	WriteLog("TEST row hidden by hand: " & FilterStateT(oG, nEmpty))
+	oSheet.getRows().getByIndex(5).IsVisible = True
+	Wait 300
+	WriteLog("TEST row shown again: " & FilterStateT(oG, nEmpty))
+	t = GetSystemTicks()
+	VisibleKey(oSheet.getCellRangeByName("A1:C1048576"))
+	WriteLog("TEST visible rows of whole columns: " & (GetSystemTicks() - t) & " ms")
+	FilterT(oRange, 900)
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub

@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.22.0"
+Const VERSION = "0.23.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -192,7 +192,8 @@ Private aDialogFound As Variant         ' codes of the column found on each map
 Private aDialogCodes As Variant         ' codes of the column compared with each map
 Private bMapChosen As Boolean           ' map chosen by the user: not selected automatically any more
 Private aDialogPalettes As Variant
-Private aDialogData As Variant          ' data of the selection (classes editor)
+Private aDialogData As Variant          ' data of the selection, visible rows (classes editor)
+Private aDialogRows As Variant          ' data of the selection, all the rows (choice of the map)
 Private sDialogClasses As String  ' current custom classes ("": linear)
 Private oEditor As Object               ' classes editor and its state
 Private aEdBounds As Variant
@@ -219,7 +220,8 @@ Private oTexts As Object                ' translated texts (key -> text), loaded
 Private sLanguage As String
 ' Linked maps: Global and not Private, because these variables must outlive
 ' the end of the macro (the modify listener is called later)
-Global aLinks() As Variant              ' watched linked maps: Array(document, range, listener, name, memory)
+Global aLinks() As Variant              ' watched linked maps: Array(document, range, listener, name,
+                                        ' memory, visible rows, listener of the document)
 Global nLinks As Long
 Global bRecalcRunning As Boolean
 Global nLastUpdate As Long              ' zones redone at the last update (-1: whole map)
@@ -271,7 +273,8 @@ Sub CalcMap()
 		GoTo Finish
 	End If
 	WriteLog("Range read: " & RangeName(oRange))
-	aData = oRange.getDataArray()
+	aData = VisibleData(oRange)
+	aDialogRows = oRange.getDataArray()
 	aColumns = ColumnNames(oRange)
 
 	sUrl = ChooseBaseMap(oDocCalc, bFromCache, aPalette, bInsert, aOptions, aColumns, aData)
@@ -2669,14 +2672,17 @@ End Sub
 ' Different codes of the chosen code column (nColumn of them); sFirst: the 1st
 ' one (maybe a header)
 Function ColumnCodes(sFirst As String, nColumn As Long) As Object
-	Dim oColumn As Object, iCol As Integer, r As Long, sCode As String
+	Dim oColumn As Object, iCol As Integer, r As Long, sCode As String, aRows As Variant
 	oColumn = com.sun.star.container.EnumerableMap.create("string", "boolean")
 	sFirst = ""
 	nColumn = 0
 	iCol = oDialog.getControl("lstCode").getSelectedItemPos()
-	For r = 0 To UBound(aDialogData)
-		If UBound(aDialogData(r)) >= iCol Then
-			sCode = NormalizeCode(aDialogData(r)(iCol))
+	' All the rows: the base map does not depend on the current filter
+	aRows = aDialogData
+	If IsArray(aDialogRows) Then aRows = aDialogRows
+	For r = 0 To UBound(aRows)
+		If UBound(aRows(r)) >= iCol Then
+			sCode = NormalizeCode(aRows(r)(iCol))
 			If sCode <> "" Then
 				If Not oColumn.containsKey(sCode) Then nColumn = nColumn + 1
 				oColumn.put(sCode, True)
@@ -3599,7 +3605,7 @@ End Function
 
 ' Listens to the changes of a link's range (only once per link)
 Sub WatchLink(oDocCalc As Object, sName As String)
-	Dim oRange As Object, oListener As Object, i As Long
+	Dim oRange As Object, oListener As Object, oDocListener As Object, i As Long
 	On Error GoTo Failed
 	For i = 0 To nLinks - 1
 		If EqualUnoObjects(aLinks(i)(0), oDocCalc) And aLinks(i)(3) = sName Then Exit Sub
@@ -3608,8 +3614,16 @@ Sub WatchLink(oDocCalc As Object, sName As String)
 	If IsNull(oRange) Then Exit Sub
 	oListener = CreateUnoListener("MapData_", "com.sun.star.util.XModifyListener")
 	oRange.addModifyListener(oListener)
+	' Changing a filter does not touch the cells: only the document tells it
+	For i = 0 To nLinks - 1
+		If EqualUnoObjects(aLinks(i)(0), oDocCalc) Then oDocListener = aLinks(i)(6)
+	Next i
+	If IsNull(oDocListener) Then
+		oDocListener = CreateUnoListener("MapDocument_", "com.sun.star.util.XModifyListener")
+		oDocCalc.addModifyListener(oDocListener)
+	End If
 	ReDim Preserve aLinks(nLinks)
-	aLinks(nLinks) = Array(oDocCalc, oRange, oListener, sName, Empty)
+	aLinks(nLinks) = Array(oDocCalc, oRange, oListener, sName, Empty, VisibleKey(oRange), oDocListener)
 	nLinks = nLinks + 1
 	InterceptMenu(oDocCalc)
 	Exit Sub
@@ -3657,6 +3671,70 @@ Finish:
 	bRecalcRunning = False
 End Sub
 
+' Listener: the document has changed. The maps whose visible rows changed
+' (filter, hidden rows) are updated; called often, so only compares the rows.
+Sub MapDocument_modified(oEvent As Object)
+	Dim i As Long, s As String, a As Variant
+	On Error GoTo Finish
+	If bRecalcRunning Then Exit Sub
+	For i = nLinks - 1 To 0 Step -1
+		If i < nLinks Then
+			If EqualUnoObjects(aLinks(i)(0), oEvent.Source) Then
+				s = VisibleKey(aLinks(i)(1))
+				If s <> aLinks(i)(5) Then
+					a = aLinks(i)
+					a(5) = s
+					aLinks(i) = a
+					bRecalcRunning = True
+					RecalcLink(a(0), a(3))
+					bRecalcRunning = False
+				End If
+			End If
+		End If
+	Next i
+Finish:
+	bRecalcRunning = False
+End Sub
+
+Sub MapDocument_disposing(oEvent As Object)
+End Sub
+
+' Identifies the visible rows of a range
+Function VisibleKey(oRange As Object) As String
+	Dim a As Variant, i As Long, s As String
+	a = oRange.queryVisibleCells().getRangeAddresses()
+	For i = 0 To UBound(a)
+		s = s & a(i).StartRow & "-" & a(i).EndRow & ";"
+	Next i
+	VisibleKey = s
+End Function
+
+' Data of a range, the rows hidden by a filter or by hand being emptied: they
+' count neither for the zones nor for the classes. Same number of rows.
+Function VisibleData(oRange As Object) As Variant
+	Dim aData As Variant, a As Variant, aBlank() As Variant, bVisible() As Boolean
+	Dim nStart As Long, i As Long, r As Long, nLast As Long
+	aData = oRange.getDataArray()
+	VisibleData = aData
+	nLast = UBound(aData)
+	nStart = oRange.getRangeAddress().StartRow
+	a = oRange.queryVisibleCells().getRangeAddresses()
+	ReDim bVisible(nLast) As Boolean
+	For i = 0 To UBound(a)
+		For r = a(i).StartRow - nStart To a(i).EndRow - nStart
+			If r >= 0 And r <= nLast Then bVisible(r) = True
+		Next r
+	Next i
+	ReDim aBlank(UBound(aData(0)))
+	For i = 0 To UBound(aBlank)
+		aBlank(i) = ""
+	Next i
+	For r = 0 To nLast
+		If Not bVisible(r) Then aData(r) = aBlank
+	Next r
+	VisibleData = aData
+End Function
+
 ' Spreadsheet closed: forgets its links
 Sub MapData_disposing(oEvent As Object)
 	Dim i As Long, k As Long
@@ -3694,7 +3772,7 @@ Sub RecalcLink(oDocCalc As Object, sName As String, Optional bFull As Variant)
 	aPalette = aPalettes(PaletteIndex(aPalettes, aFields(2)))
 	oRange = DataRange(oRange)
 	If IsNull(oRange) Then Exit Sub
-	aData = oRange.getDataArray()
+	aData = VisibleData(oRange)
 	' Always a text context: a text disabled by the configuration
 	' is thus cleared
 	vText = TextContext(oDocCalc, oRange, aData, LinkOptions(aFields), oDocCalc)
@@ -3889,7 +3967,7 @@ Sub ConfigureMap()
 	oRange = DataRange(oDocCalc.NamedRanges.getByName(sName).getReferredCells())
 	If IsNull(oRange) Then GoTo Finish
 	aColumns = ColumnNames(oRange)
-	aDialogData = oRange.getDataArray()
+	aDialogData = VisibleData(oRange)
 	aPalettes = LoadPalettes()
 	aMaps = Array(LinkMap(aFields(3)))
 	bInsert = True
@@ -3942,7 +4020,7 @@ End Function
 Sub RememberMap(i As Long, aMemory As Variant)
 	Dim a As Variant
 	a = aLinks(i)
-	aLinks(i) = Array(a(0), a(1), a(2), a(3), aMemory)
+	aLinks(i) = Array(a(0), a(1), a(2), a(3), aMemory, a(5), a(6))
 End Sub
 
 ' Zone by zone update: only redoes the zones whose value or
@@ -4058,19 +4136,25 @@ End Sub
 
 ' Removes a link whose map has disappeared (named range, property, listener)
 Sub ForgetLink(oDocCalc As Object, sName As String)
-	Dim i As Long, k As Long
+	Dim i As Long, k As Long, oDocListener As Object
 	On Error Resume Next
 	oDocCalc.getDocumentProperties().getUserDefinedProperties().removeProperty(sName)
 	oDocCalc.NamedRanges.removeByName(sName)
 	For i = nLinks - 1 To 0 Step -1
 		If EqualUnoObjects(aLinks(i)(0), oDocCalc) And aLinks(i)(3) = sName Then
 			aLinks(i)(1).removeModifyListener(aLinks(i)(2))
+			oDocListener = aLinks(i)(6)
 			For k = i To nLinks - 2
 				aLinks(k) = aLinks(k + 1)
 			Next k
 			nLinks = nLinks - 1
 		End If
 	Next i
+	' Last map of the document: its listener is no longer needed
+	For i = 0 To nLinks - 1
+		If EqualUnoObjects(aLinks(i)(0), oDocCalc) Then Exit Sub
+	Next i
+	If Not IsNull(oDocListener) Then oDocCalc.removeModifyListener(oDocListener)
 End Sub
 
 Function CellName(oCell As Object) As String
