@@ -491,7 +491,7 @@ tests/headless/run.sh TestSettings         # settings: default values, change
 tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja
 tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
 tests/headless/run.sh TestEuMap            # European Union map colored from ISO codes
-tests/headless/run.sh TestWorldMaps        # world continents and countries, each projection: every zone colored
+tests/headless/run.sh TestWorldMaps        # world maps (each projection) and continent maps: every zone colored
 tests/headless/run.sh TestMapLabels tests/test-world-continents-robinson.ods   # labels on the largest part
 tests/headless/run.sh TestMapReadability   # text outline settings: shapes, recoloring time
 tests/headless/run.sh TestColumnNames      # column names with examples
@@ -534,7 +534,8 @@ calcmap/
     ├── test-communes.ods       35,191 communes   │
     ├── test-eu-countries.ods   27 EU countries   │
     ├── test-world-continents-<projection>.ods  7 continents     │ robinson, equal-earth,
-    ├── test-world-countries-<projection>.ods   237 countries    ┘ miller
+    ├── test-world-countries-<projection>.ods   237 countries    │ miller
+    ├── test-<continent>-countries.ods  countries of each continent ┘ (africa, asia, europe…)
     ├── test-edge-cases.ods     headers, blanks, texts, errors, duplicates…
     └── headless/               tests without a display (run.sh, driver.py, macros, fixtures)
 ```

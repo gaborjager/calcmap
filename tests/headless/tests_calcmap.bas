@@ -772,7 +772,7 @@ ErrT:
 End Sub
 
 ' ---------------------------------------------------------------- world maps
-' Continents and countries: each zone of the map gets a value in a new sheet
+' World and continent maps: each zone of the map gets a value in a new sheet
 ' (codes read from the map), all must be colored, in Draw;
 ' one image <map>.png per map
 Sub TestWorldMaps()
@@ -786,7 +786,9 @@ Sub TestWorldMaps()
 	aPals = LoadPalettes()
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
 	For Each sId In Array("world-continents-robinson", "world-continents-equal-earth", "world-continents-miller", _
-			"world-countries-robinson", "world-countries-equal-earth", "world-countries-miller")
+			"world-countries-robinson", "world-countries-equal-earth", "world-countries-miller", _
+			"africa-countries", "asia-countries", "europe-countries", "north-america-countries", _
+			"oceania-countries", "south-america-countries")
 		oDoc = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/" & sId & ".odg"), _
 			"_blank", 0, aProps())
 		oPage = oDoc.getDrawPages().getByIndex(0)
