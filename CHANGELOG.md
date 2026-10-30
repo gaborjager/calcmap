@@ -3,6 +3,11 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.23.1 - 2026-10-30
+
+- Map settings: the warning icon next to the map codes no longer appears
+  because of a filter. The codes are compared with all the rows of the column.
+
 ## 0.23.0 - 2026-10-30
 
 - Filters are taken into account: the map shows only the visible rows. Zones

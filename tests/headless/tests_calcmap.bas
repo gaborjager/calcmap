@@ -990,3 +990,66 @@ ErrT:
 	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
+
+' Map settings of a filtered map: the check of the codes uses all the rows, the
+' classes editor the visible ones. The main dialog is opened first, with
+' another map: its result must not be reused.
+Sub TestConfigFilter()
+	Dim oCalc As Object, oSheet As Object, oRange As Object, aOpt As Variant, oG As Object, oImg As Object
+	Dim aPals As Variant, aMaps As Variant, b As Boolean, iC As Integer, iP As Integer, bI As Boolean, n As Integer
+	Dim s As String, sLink As String
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	sLanguage = "en"
+	LoadTexts()
+	oCalc = DocCalcT()
+	oSheet = oCalc.getSheets().getByIndex(0)
+	oRange = oSheet.getCellRangeByName("A1:C97")
+	SourcesT()
+	SettingT("MaxZones", 400)
+	' The map of the link in the cache, as after a real insertion
+	CreateUnoService("com.sun.star.ucb.SimpleFileAccess").copy( _
+		ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/departements-france.odg"), MapsFolder() & "departements-france.odg")
+	aPals = LoadPalettes()
+	aMaps = LoadCatalog(MapsFolder(), b)
+	aDialogData = oRange.getDataArray()
+	bI = True
+	aOpt = DefaultOptions()
+	bKeepDialog = True
+	n = MapDialog(aMaps, aPals, "state", "regions", "bleus", iC, iP, bI, aOpt, ColumnNames(oRange), Nothing, False)
+	s = "TEST main dialog: " & FitsT()
+	oDialog.dispose()
+	bKeepDialog = False
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True
+	InsertMapT(aOpt, "jaune-rouge-10")
+	FilterT(oRange, 900)
+	oG = oSheet.getDrawPage().getByIndex(0)
+	oCalc.getCurrentController().select(oG)
+	sLink = SelectionLink(oCalc, oCalc.getCurrentController().getSelection())
+	bKeepDialog = True
+	ConfigureMap(oCalc)
+	OpenLog()                ' ConfigureMap closed the log: this one starts again
+	WriteLog(s)
+	WriteLog("TEST link of the selection: '" & sLink & "'")
+	oImg = oDialog.getControl("imgCodes")
+	WriteLog("TEST settings, filter > 900: visible=" & oImg.isVisible() & " help=" & oImg.getModel().HelpText)
+	WriteLog("TEST rows: all " & IIf(IsArray(aDialogRows), "given", "NOT GIVEN") & ", visible " & CountT(aDialogData))
+	bKeepDialog = False
+	oDialog.dispose()
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub
+
+' Rows with a code
+Function CountT(aRows As Variant) As Long
+	Dim r As Long, n As Long
+	For r = 0 To UBound(aRows)
+		If NormalizeCode(aRows(r)(0)) <> "" Then n = n + 1
+	Next r
+	CountT = n
+End Function

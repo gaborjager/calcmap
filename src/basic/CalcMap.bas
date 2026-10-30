@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.23.0"
+Const VERSION = "0.23.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -193,7 +193,7 @@ Private aDialogCodes As Variant         ' codes of the column compared with each
 Private bMapChosen As Boolean           ' map chosen by the user: not selected automatically any more
 Private aDialogPalettes As Variant
 Private aDialogData As Variant          ' data of the selection, visible rows (classes editor)
-Private aDialogRows As Variant          ' data of the selection, all the rows (choice of the map)
+Private aDialogRows As Variant          ' data of the selection, all the rows (comparison with the maps)
 Private sDialogClasses As String  ' current custom classes ("": linear)
 Private oEditor As Object               ' classes editor and its state
 Private aEdBounds As Variant
@@ -2405,7 +2405,7 @@ Function MapDialog(aMaps As Variant, aPalettes As Variant, sState As String, _
 	' (seen with LibreOffice 25.2 on Wayland)
 	oDialog.createPeer(CreateUnoService("com.sun.star.awt.Toolkit"), oParent)
 	If nLast >= 0 Then
-		If Not bConfig Then ShowMapFits()
+		ShowMapFits()
 		ShowDescription(SelectedMap())
 	End If
 	ShowPalette(iPalDefault)
@@ -3945,8 +3945,8 @@ Finish:
 End Function
 
 ' "Map settings…" menu: reopens the dialog for the selected
-' map (palette, values, labels), then recolors it
-Sub ConfigureMap()
+' map (palette, values, labels), then recolors it. oDoc: tests only
+Sub ConfigureMap(Optional oDoc As Variant)
 	Dim oDocCalc As Object, sName As String, aFields As Variant, aOptions As Variant
 	Dim aPalettes As Variant, aMaps As Variant, iChoice As Integer, iPalette As Integer
 	Dim bInsert As Boolean, nRes As Integer, sPrefMap As String, sPrefPalette As String
@@ -3955,7 +3955,7 @@ Sub ConfigureMap()
 	OpenLog()
 	WriteLog("CalcMap " & VERSION & " - map configuration")
 	LoadTexts()
-	oDocCalc = ThisComponent
+	If IsMissing(oDoc) Then oDocCalc = ThisComponent Else oDocCalc = oDoc
 	sName = SelectionLink(oDocCalc, oDocCalc.getCurrentController().getSelection())
 	If sName = "" Then
 		Warn(Tr("msg.select_map"))
@@ -3968,6 +3968,7 @@ Sub ConfigureMap()
 	If IsNull(oRange) Then GoTo Finish
 	aColumns = ColumnNames(oRange)
 	aDialogData = VisibleData(oRange)
+	aDialogRows = oRange.getDataArray()
 	aPalettes = LoadPalettes()
 	aMaps = Array(LinkMap(aFields(3)))
 	bInsert = True
