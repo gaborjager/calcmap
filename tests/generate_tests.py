@@ -11,7 +11,8 @@ to this repository (../odg-atlas, or the path in the ODG_ATLAS environment
 variable), as the headless tests; without it, they are downloaded.
 
 Each spreadsheet contains: Code | Value (test) | Name, one row per zone of the
-map. Codes and names are read from the map itself (draw:name and
+map; the sheet is named after the map. A map in several projections has one
+spreadsheet (test-world-countries.ods). Codes and names are read from the map itself (draw:name and
 alternative text svg:desc); values are random but reproducible.
 Codes are written as text to keep leading zeros ("01").
 """
@@ -19,6 +20,7 @@ import io
 import json
 import os
 import random
+import re
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -29,6 +31,8 @@ from xml.sax.saxutils import escape
 CATALOG_URL = "https://raw.githubusercontent.com/gaborjager/odg-atlas/refs/heads/main/output/maps.json"
 FOLDER = Path(__file__).resolve().parent
 ATLAS = Path(os.environ.get("ODG_ATLAS") or FOLDER.parent.parent / "odg-atlas")
+# The same map in several projections has the same codes: one spreadsheet only
+PROJECTION = re.compile(r"-(robinson|equal-earth|miller)$")
 
 NS_DRAW = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
 NS_SVG = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
@@ -112,11 +116,15 @@ def main():
     force = "--force" in sys.argv
     catalog = {c["id"]: c for c in json.loads(read(CATALOG_URL))["maps"]}
     ids = args or list(catalog)
+    done = set()
     for id_ in ids:
         if id_ not in catalog:
             print(f"{id_}: not in the catalog ({', '.join(catalog)})")
             continue
-        path = FOLDER / f"test-{id_}.ods"
+        path = FOLDER / f"test-{PROJECTION.sub('', id_)}.ods"
+        if path in done:
+            continue
+        done.add(path)
         if path.exists() and not force:
             print(f"{path.name} already exists (--force to rewrite it)")
             continue
