@@ -3,6 +3,11 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.24.1 - 2026-11-01
+
+- Labels and values of curved zones (Norway, Croatia, Chile, Vietnam…) are now
+  placed inside the zone, not on a neighbor. The other labels do not move.
+
 ## 0.24.0 - 2026-11-01
 
 - Optional zones: on the European Union map, the other countries of Europe

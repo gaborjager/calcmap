@@ -26,7 +26,7 @@ Function InsertMapT(aOpt As Variant, sPalette As String, Optional sMap As String
 	oRange = DataRange(oSel)
 	aProps(0).Name = "Hidden" : aProps(0).Value = True
 	If IsMissing(sMap) Then sMap = "departements-france"
-	sUrl = ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/" & sMap & ".odg")
+	sUrl = ConvertToURL(Environ("CALCMAP_ATLAS") & "/output/" & Replace(sMap, "|", "") & ".odg")
 	oDoc = StarDesktop.loadComponentFromURL(sUrl, "_blank", 0, aProps())
 	vT = TextContext(oCalc, oRange, oRange.getDataArray(), aOpt, Nothing)
 	ColorDocument(oDoc, oRange.getDataArray(), aPal, vT)
@@ -833,7 +833,7 @@ Sub TestMapLabels()
 	oCalc = DocCalcT()
 	aOpt = DefaultOptions()
 	aOpt(O_VALUES) = True : aOpt(O_LABELS) = True : aOpt(O_LEGEND) = True
-	InsertMapT(aOpt, "jaune-rouge-10", oCalc.getSheets().getByIndex(0).Name)
+	InsertMapT(aOpt, "jaune-rouge-10", Replace(oCalc.getSheets().getByIndex(0).Name & "|", "departements|", "departements-france|"))
 	oG = oCalc.getSheets().getByIndex(0).getDrawPage().getByIndex(0)
 	For i = 0 To oG.getCount() - 1
 		o = oG.getByIndex(i)
@@ -844,6 +844,7 @@ Sub TestMapLabels()
 		End If
 	Next i
 	WriteLog("TEST " & oCalc.getSheets().getByIndex(0).Name & ": " & oG.getCount() & " shapes ; " & s)
+	WriteLog("TEST texts outside their zone: " & LabelsOutT(oG))
 	CloseLog()
 	Exit Sub
 ErrT:
@@ -1116,3 +1117,27 @@ ErrT:
 	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
 	Resume Next
 End Sub
+
+' Codes whose text (last shape of the code: the text itself, above its outline
+' copies) has its center outside the zone
+Function LabelsOutT(oG As Object) As String
+	Dim i As Long, k As Long, o As Object, z As Object, sCode As String, s As String, n As Long, nOut As Long
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If Left(o.Name, Len(TEXT_PREFIX)) <> TEXT_PREFIX And Not IsLegend(o.Name) Then
+			z = o
+			sCode = TEXT_PREFIX & " " & z.Name
+			For k = i + 1 To oG.getCount() - 1
+				If oG.getByIndex(k).Name = sCode Then o = oG.getByIndex(k)
+			Next k
+			If o.Name = sCode Then
+				n = n + 1
+				If Not InsideRings(z.PolyPolygon, o.Position.X + o.Size.Width / 2, o.Position.Y + o.Size.Height / 2) Then
+					nOut = nOut + 1
+					s = s & z.Name & " "
+				End If
+			End If
+		End If
+	Next i
+	LabelsOutT = nOut & " out of " & n & " : " & s
+End Function

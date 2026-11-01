@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.24.0"
+Const VERSION = "0.24.1"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -138,6 +138,7 @@ Const FIT_NONE = 1                      ' few codes of the column are on the map
 Const FIT_PARTIAL = 2                   ' most of them are on the map (another map may fit better)
 Const FIT_OK = 3                        ' same codes on both sides
 Const FIT_PARTIAL_MIN = 0.5             ' share of the column found on the map
+Const LABEL_SCANS = 15                  ' lines tried to place a text inside a curved zone
 Const OPTIONAL_TITLE = "optional-zone"  ' title of an optional zone of a map
 Const OPTIONAL_COLOR = 16777215         ' its color without data (white)
 Const FIT_OK_MIN = 0.95                 ' share found on each side (a few blanks or totals tolerated)
@@ -185,6 +186,7 @@ Const P_CONTINUOUS = 4                  ' True: continuous gradient, otherwise c
 Private oLog As Object                  ' text stream of the log (Null if unavailable)
 Private sLogPath As String
 Private oDialog As Object               ' map choice dialog (for its listeners)
+Private oZoneCenters As Object          ' center of the texts of the zones already computed
 Private bKeepDialog As Boolean          ' tests: dialog kept after execute(), to read it back
 Private aDialogMaps As Variant
 Private aDialogLabels As Variant        ' names of the maps, without the match symbol
@@ -637,21 +639,34 @@ Failed:
 End Sub
 
 ' Center of the zone texts: center of the largest part of the zone (a
-' country with islands or overseas territories, a continent), else of the
-' whole shape
+' country with islands or overseas territories, a continent), or, if this
+' point is outside the zone (curved shape: Norway, Croatia), middle of the
+' widest horizontal band of this part
 Sub ZoneCenter(oZone As Object, dCx As Double, dCy As Double)
 	Dim aPolys As Variant, aPts As Variant, i As Long, k As Long, n As Long
 	Dim dArea As Double, dBest As Double, x0 As Double, x1 As Double, y0 As Double, y1 As Double
-	Dim xA As Double, yA As Double, xB As Double, yB As Double
+	Dim xA As Double, yA As Double, xB As Double, yB As Double, iBest As Long, sKey As String, aKnown As Variant
 	dCx = oZone.Position.X + oZone.Size.Width / 2
 	dCy = oZone.Position.Y + oZone.Size.Height / 2
 	On Error GoTo Done
+	' A zone does not move when it is recolored: computed once
+	If IsNull(oZoneCenters) Then oZoneCenters = com.sun.star.container.EnumerableMap.create("string", "string")
+	sKey = oZone.Name & "|" & dCx & "|" & dCy & "|" & oZone.Size.Width
+	If oZoneCenters.containsKey(sKey) Then
+		aKnown = Split(oZoneCenters.get(sKey), "|")
+		dCx = CDbl(aKnown(0))
+		dCy = CDbl(aKnown(1))
+		Exit Sub
+	End If
 	Select Case oZone.getShapeType()
 		Case "com.sun.star.drawing.PolyPolygonShape" : aPolys = oZone.PolyPolygon
 		Case "com.sun.star.drawing.ClosedBezierShape" : aPolys = oZone.PolyPolygonBezier.Coordinates
 		Case Else : Exit Sub
 	End Select
-	If UBound(aPolys) < 1 Then Exit Sub
+	' In one piece: the center of the shape, if it is inside
+	If UBound(aPolys) = 0 Then
+		If InsideRings(aPolys, dCx, dCy) Then GoTo Known
+	End If
 	For i = 0 To UBound(aPolys)
 		aPts = aPolys(i)
 		n = UBound(aPts)
@@ -663,6 +678,7 @@ Sub ZoneCenter(oZone As Object, dCx As Double, dCy As Double)
 		Next k
 		If Abs(dArea) > dBest Then
 			dBest = Abs(dArea)
+			iBest = i
 			x0 = aPts(0).X : x1 = x0 : y0 = aPts(0).Y : y1 = y0
 			For k = 1 To n
 				If aPts(k).X < x0 Then x0 = aPts(k).X
@@ -677,7 +693,64 @@ Sub ZoneCenter(oZone As Object, dCx As Double, dCy As Double)
 		Or x1 > oZone.Position.X + oZone.Size.Width + 1 Or y1 > oZone.Position.Y + oZone.Size.Height + 1 Then Exit Sub
 	dCx = (x0 + x1) / 2
 	dCy = (y0 + y1) / 2
+	If Not InsideRings(aPolys, dCx, dCy) Then WidestBand(aPolys(iBest), y0, y1, dCx, dCy)
+Known:
+	oZoneCenters.put(sKey, dCx & "|" & dCy)
 Done:
+End Sub
+
+' Is the point inside these rings? (even-odd rule: holes are taken into account)
+Function InsideRings(aPolys As Variant, ByVal x As Double, ByVal y As Double) As Boolean
+	Dim aPts As Variant, i As Long, k As Long, n As Long, xA As Double, yA As Double, xB As Double, yB As Double
+	For i = 0 To UBound(aPolys)
+		aPts = aPolys(i)
+		n = UBound(aPts)
+		xA = aPts(n).X : yA = aPts(n).Y
+		For k = 0 To n
+			xB = aPts(k).X : yB = aPts(k).Y
+			If (yA > y) <> (yB > y) Then
+				If x < xA + (y - yA) * (xB - xA) / (yB - yA) Then InsideRings = Not InsideRings
+			End If
+			xA = xB : yA = yB
+		Next k
+	Next i
+End Function
+
+' Middle of the widest horizontal band inside a ring, among LABEL_SCANS lines
+' between y0 and y1
+Sub WidestBand(aPts As Variant, ByVal y0 As Double, ByVal y1 As Double, dCx As Double, dCy As Double)
+	Dim aX() As Double, nX As Long, n As Long, s As Long, k As Long, j As Long, y As Double, dX As Double
+	Dim xA As Double, yA As Double, xB As Double, yB As Double, dBest As Double
+	n = UBound(aPts)
+	ReDim aX(n)
+	For s = 1 To LABEL_SCANS
+		y = y0 + (y1 - y0) * (s - 0.5) / LABEL_SCANS
+		nX = 0
+		xA = aPts(n).X : yA = aPts(n).Y
+		For k = 0 To n
+			xB = aPts(k).X : yB = aPts(k).Y
+			If (yA > y) <> (yB > y) Then
+				' Crossing kept sorted
+				dX = xA + (y - yA) * (xB - xA) / (yB - yA)
+				j = nX - 1
+				Do While j >= 0
+					If aX(j) <= dX Then Exit Do
+					aX(j + 1) = aX(j)
+					j = j - 1
+				Loop
+				aX(j + 1) = dX
+				nX = nX + 1
+			End If
+			xA = xB : yA = yB
+		Next k
+		For k = 0 To nX - 2 Step 2
+			If aX(k + 1) - aX(k) > dBest Then
+				dBest = aX(k + 1) - aX(k)
+				dCx = (aX(k) + aX(k + 1)) / 2
+				dCy = y
+			End If
+		Next k
+	Next s
 End Sub
 
 ' Text shape (one centered paragraph per text) centered on (dCx, dCy),
