@@ -56,6 +56,8 @@ def zones(odg):
         desc = el.find(f"{{{NS_SVG}}}desc")
         if not code or desc is None or code in result:
             continue
+        if el.findtext(f"{{{NS_SVG}}}title") == "optional-zone":   # not a zone to test
+            continue
         text = (desc.text or "").strip()
         # "22 - Côtes-d'Armor" -> "Côtes-d'Armor"
         name = text.split(" - ", 1)[1] if text.startswith(code + " - ") else text

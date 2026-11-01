@@ -1061,3 +1061,58 @@ Function CountT(aRows As Variant) As Long
 	Next r
 	CountT = n
 End Function
+
+' ---------------------------------------------------------------- optional zones
+' EU map: the countries outside the EU stay white without data, are not counted
+' as "No data" and are colored as soon as they get a value. Run it on
+' tests/test-eu-countries.ods. Image: map.png, with CH colored and FR without value.
+Function OptionalT(oG As Object) As String
+	Dim i As Long, o As Object, nWhite As Long, nZones As Long, sCodes As String, sLegend As String
+	For i = 0 To oG.getCount() - 1
+		o = oG.getByIndex(i)
+		If IsLegend(o.Name) Then
+			If InStr(o.getString(), Tr("legend.no_data")) > 0 Then sLegend = " ; No data in the legend"
+		ElseIf Left(o.Name, Len(TEXT_PREFIX)) <> TEXT_PREFIX Then
+			nZones = nZones + 1
+			If o.FillColor = OPTIONAL_COLOR Then nWhite = nWhite + 1
+			If o.Name = "FR" Or o.Name = "CH" Or o.Name = "NO" Then
+				sCodes = sCodes & o.Name & "=" & Hex(o.FillColor) & IIf(IsOptional(o), " optional ", " ")
+			End If
+		End If
+	Next i
+	OptionalT = nZones & " zones, " & nWhite & " white ; " & sCodes & sLegend
+End Function
+
+Sub TestOptionalZones()
+	Dim oCalc As Object, oSheet As Object, oG As Object, aOpt As Variant, sLink As String
+	OpenLog()
+	On Error GoTo ErrT
+	LoadTexts()
+	oCalc = DocCalcT()
+	oSheet = oCalc.getSheets().getByIndex(0)
+	aOpt = DefaultOptions()
+	aOpt(O_VALUES) = True : aOpt(O_LEGEND) = True
+	sLink = InsertMapT(aOpt, "jaune-rouge-10", "eu-countries")
+	oG = oSheet.getDrawPage().getByIndex(0)
+	WriteLog("TEST data of the EU only: " & OptionalT(oG))
+	oSheet.getCellByPosition(0, 28).setString("CH")
+	oSheet.getCellByPosition(1, 28).setValue(500)
+	Wait 300
+	WriteLog("TEST value for CH: " & OptionalT(oG))
+	oSheet.getCellByPosition(1, 28).setValue(700)
+	Wait 300
+	WriteLog("TEST other value for CH: " & OptionalT(oG))
+	oSheet.getCellByPosition(1, 28).setString("")
+	Wait 300
+	WriteLog("TEST value of CH removed: " & OptionalT(oG))
+	oSheet.getCellByPosition(1, 28).setValue(500)
+	Wait 300
+	oSheet.getCellByPosition(1, 11).setString("")
+	Wait 300
+	WriteLog("TEST row 12 emptied: " & OptionalT(oG))
+	CloseLog()
+	Exit Sub
+ErrT:
+	WriteLog("TEST ERROR line " & Erl & ": " & Error$)
+	Resume Next
+End Sub

@@ -374,6 +374,7 @@ default color (grey) and is noted in the log.
 |---|---|
 | Empty row, empty code | skipped |
 | Row hidden by a filter or by hand | skipped |
+| Optional zone of the map without data (a non-EU country on the EU map) | stays white, not counted as "No data" |
 | Header (even repeated in the middle) | skipped (non-numeric value) |
 | Empty value, text (`n.d.`), cell in error (`#DIV/0!`) | default color |
 | Number typed as text (`1 234,5`) | accepted |
@@ -508,6 +509,7 @@ tests/headless/run.sh TestSettings         # settings: default values, change
 tests/headless/run.sh TestTranslations     # each language loaded; dialog in de, ar, ja
 tests/headless/run.sh TestOldNames         # maps made by versions up to 0.19
 tests/headless/run.sh TestEuMap            # European Union map colored from ISO codes
+tests/headless/run.sh TestOptionalZones tests/test-eu-countries.ods   # countries outside the EU: white, colored with a value
 tests/headless/run.sh TestWorldMaps        # world maps (each projection) and continent maps: every zone colored
 tests/headless/run.sh TestMapLabels tests/test-world-continents-robinson.ods   # labels on the largest part
 tests/headless/run.sh TestMapReadability   # text outline settings: shapes, recoloring time

@@ -3,6 +3,13 @@
 All notable changes to CalcMap. Each section becomes the description of the
 matching GitHub release (see `.github/workflows/release.yml`).
 
+## 0.24.0 - 2026-11-01
+
+- Optional zones: on the European Union map, the other countries of Europe
+  stay white without data, with their borders, and are colored if your data
+  has their code. Update CalcMap for this map: earlier versions show these
+  countries as "No data".
+
 ## 0.23.2 - 2026-10-30
 
 - Code check: the green tick appears as soon as all the codes of the column are

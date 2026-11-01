@@ -71,7 +71,7 @@ REM  Set DETAILED_LOG to True to also trace each zone.
 
 Option Explicit
 
-Const VERSION = "0.23.2"
+Const VERSION = "0.24.0"
 Const ID_EXTENSION = "fr.github.gaborjager.calcmap"
 Const DETAILED_LOG = False              ' True: one line per zone in the log
 Const WRITE_ALT_TEXT = True             ' True: value added to the alternative text (Description)
@@ -138,6 +138,8 @@ Const FIT_NONE = 1                      ' few codes of the column are on the map
 Const FIT_PARTIAL = 2                   ' most of them are on the map (another map may fit better)
 Const FIT_OK = 3                        ' same codes on both sides
 Const FIT_PARTIAL_MIN = 0.5             ' share of the column found on the map
+Const OPTIONAL_TITLE = "optional-zone"  ' title of an optional zone of a map
+Const OPTIONAL_COLOR = 16777215         ' its color without data (white)
 Const FIT_OK_MIN = 0.95                 ' share found on each side (a few blanks or totals tolerated)
 
 ' Options of a map (array returned by DefaultOptions). Same order in
@@ -455,6 +457,8 @@ Function ColorContainers(aContainers As Variant, aData As Variant, aPalette As V
 					KeepText(oShape, sLabel, sValue, nColor, aZonesT, aLabT, aValT, aClrT, nT)
 					nOk = nOk + 1
 					If DETAILED_LOG Then WriteLog("  " & sName & " = " & dVal & " -> color " & Hex(nColor))
+				ElseIf IsOptional(oShape) Then
+					ApplyZone(oShape, OPTIONAL_COLOR, Tr("alt.none"), bText)
 				Else
 					ApplyZone(oShape, aPalette(P_EMPTY), Tr("alt.none"), bText)
 					KeepText(oShape, sLabel, "", aPalette(P_EMPTY), aZonesT, aLabT, aValT, aClrT, nT)
@@ -554,6 +558,16 @@ Sub ApplyZone(oShape As Object, nColor As Long, sText As String, bText As Boolea
 Failed:
 	WriteLog("  shape skipped (" & Error$ & ")")
 End Sub
+
+' Optional zone of a map (e.g. the countries outside the EU on the EU map):
+' without data it stays white, without text and outside the "No data" count
+Function IsOptional(oShape As Object) As Boolean
+	On Error GoTo Failed
+	IsOptional = (oShape.Title = OPTIONAL_TITLE)
+	Exit Function
+Failed:
+	IsOptional = False
+End Function
 
 ' Keeps the text of a zone (label and/or value), created after the coloring
 Sub KeepText(oZone As Object, sLabel As String, sValue As String, nColor As Long, _
@@ -3450,6 +3464,7 @@ Function CopyShapes(oPageDraw As Object, oDocCalc As Object, oPageCalc As Object
 			oCopy.LineColor = oSource.LineColor
 			oCopy.LineWidth = oSource.LineWidth
 			oCopy.Name = oSource.Name
+			oCopy.Title = oSource.Title
 			oCopy.Description = oSource.Description
 			If oSource.getString() <> "" Then CopyText(oSource, oCopy, CALC_MAP_WIDTH / oPageDraw.Width)
 		Else
@@ -4090,6 +4105,10 @@ Function PartialUpdate(oGroup As Object, aData As Variant, aPalette As Variant, 
 			If nColor < 0 Then nColor = aPalette(P_EMPTY)
 			ApplyZone(oZone, nColor, Tr("alt.value", dVal), True)
 			If dValueSize > 0 Then sValue = ValueText(vText, dVal)
+		ElseIf IsOptional(oZone) Then
+			nColor = OPTIONAL_COLOR
+			sLabel = ""
+			ApplyZone(oZone, nColor, Tr("alt.none"), True)
 		Else
 			nColor = aPalette(P_EMPTY)
 			ApplyZone(oZone, nColor, Tr("alt.none"), True)
